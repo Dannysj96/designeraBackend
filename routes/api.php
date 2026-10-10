@@ -20,6 +20,7 @@ use App\Models\SpecialDay;
 use App\Models\StaticNotification;
 use App\Models\SubCategory;
 use App\Models\User;
+use App\Models\UserDeviceToken;
 use App\Models\UserPlanHistory;
 use App\Models\UserPremiumTemplate;
 use App\Models\Video;
@@ -218,6 +219,44 @@ Route::prefix('v1')->group(function () {
                 'user' => $user->load(['plan', 'activePlanHistory']),
             ]);
         });
+
+        Route::post('/auth/device-token', function (Request $request) {
+            $validated = $request->validate([
+                'fcm_token' => 'required|string|max:4096',
+                'platform' => 'nullable|string|in:android,ios,web',
+            ]);
+
+            UserDeviceToken::query()->updateOrCreate(
+                ['token_hash' => hash('sha256', $validated['fcm_token'])],
+                [
+                    'user_id' => $request->user()->getKey(),
+                    'fcm_token' => $validated['fcm_token'],
+                    'platform' => $validated['platform'] ?? null,
+                    'last_seen_at' => now(),
+                ],
+            );
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Device notification token registered.',
+            ]);
+        })->middleware('throttle:30,1');
+
+        Route::delete('/auth/device-token', function (Request $request) {
+            $validated = $request->validate([
+                'fcm_token' => 'required|string|max:4096',
+            ]);
+
+            UserDeviceToken::query()
+                ->where('user_id', $request->user()->getKey())
+                ->where('token_hash', hash('sha256', $validated['fcm_token']))
+                ->delete();
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Device notification token removed.',
+            ]);
+        })->middleware('throttle:30,1');
 
         // Update Profile
         Route::post('/auth/update-profile', function (Request $request) {

@@ -85,6 +85,7 @@ class RegularNotificationForm
                             ])
                             ->searchable()
                             ->native(false)
+                            ->required()
                             ->columnSpanFull(),
                     ]),
             ]);

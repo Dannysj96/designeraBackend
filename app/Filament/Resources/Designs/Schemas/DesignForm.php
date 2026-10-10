@@ -5,18 +5,14 @@ namespace App\Filament\Resources\Designs\Schemas;
 use App\Filament\Helpers\LocationHelper;
 use App\Helpers\DesignOptions;
 use App\Helpers\FileManagerAction;
-use App\Models\Category;
-use App\Models\ParentCategory;
-use App\Models\SubCategory;
 use Filament\Forms\Components\Checkbox;
-use Filament\Forms\Components\CheckboxList;
-use Filament\Forms\Components\ColorPicker;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Radio;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
+use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 
@@ -29,61 +25,67 @@ class DesignForm
             ->components([
                 Section::make('Design Details')
                     ->columnSpanFull()
-                    ->columns(2)
                     ->components([
-                        FileUpload::make('design')
-                            ->label('Upload Design')
-                            ->image()
-                            ->directory('designs')
-                            ->imageEditor()->imagePreviewHeight('150')
-                            ->hintAction(FileManagerAction::make())
-                            ->columnSpanFull(),
+                        Grid::make(['default' => 1, 'lg' => 2])
+                            ->schema([
+                                FileUpload::make('design')
+                                    ->label('Upload Design')
+                                    ->image()
+                                    ->directory('designs')
+                                    ->imageEditor()
+                                    ->imagePreviewHeight('200')
+                                    // ->panelAspectRatio('1:1')
+                                    ->hintAction(FileManagerAction::make()),
 
-                        TextInput::make('price')
-                            ->label('Price')
-                            ->placeholder('Price..')
-                            ->numeric()
-                            ->default(0)
-                            ->required(),
+                                Grid::make(2)
+                                    ->schema([
+                                        TextInput::make('price')
+                                            ->label('Price')
+                                            ->placeholder('Price..')
+                                            ->numeric()
+                                            ->default(0)
+                                            ->required(),
 
-                        TextInput::make('discount')
-                            ->label('Discount')
-                            ->placeholder('Discount..')
-                            ->numeric()
-                            ->default(0)
-                            ->required(),
+                                        TextInput::make('discount')
+                                            ->label('Discount')
+                                            ->placeholder('Discount..')
+                                            ->numeric()
+                                            ->default(0)
+                                            ->required(),
 
-                        Radio::make('status')
-                            ->label('Status')
-                            ->options([
-                                1 => 'Paid - 1',
-                                0 => 'Free - 0',
-                                2 => 'Offer - 2',
-                            ])
-                            ->default(1)
-                            ->inline(false)
-                            ->required(),
+                                        Radio::make('status')
+                                            ->label('Status')
+                                            ->options([
+                                                1 => 'Paid - 1',
+                                                0 => 'Free - 0',
+                                                2 => 'Offer - 2',
+                                            ])
+                                            ->default(1)
+                                            ->inline(false)
+                                            ->required(),
 
-                        Section::make('Photo Options')
-                            ->columnSpan(1)
-                            ->columns(2)
-                            ->components([
-                                Checkbox::make('front_img')
-                                    ->label('Front Img')
-                                    ->default(false),
+                                        Section::make('Photo Options')
+                                            ->columnSpan(1)
+                                            ->columns(2)
+                                            ->components([
+                                                Checkbox::make('front_img')
+                                                    ->label('Front Img')
+                                                    ->default(false),
 
-                                Checkbox::make('back')
-                                    ->label('Back')
-                                    ->default(false),
+                                                Checkbox::make('back')
+                                                    ->label('Back')
+                                                    ->default(false),
+                                            ]),
+
+                                        Select::make('special_day')
+                                            ->label('Special Days')
+                                            ->placeholder('Select an option')
+                                            ->options(DesignOptions::getSpecialDayOptions())
+                                            ->searchable()
+                                            ->native(false)
+                                            ->columnSpanFull(),
+                                    ]),
                             ]),
-
-                        Select::make('special_day')
-                            ->label('Special Days')
-                            ->placeholder('Select an option')
-                            ->options(DesignOptions::getSpecialDayOptions())
-                            ->searchable()
-                            ->native(false)
-                            ->columnSpanFull(),
                     ]),
 
                 Section::make('Plan & Frame Options')
@@ -135,7 +137,7 @@ class DesignForm
                                 'Right' => 'Right',
                                 'No' => 'No',
                             ])
-                            ->default('No'),
+                            ->default('Left'),
 
                         Radio::make('remove_watermark')
                             ->label('Remove Watermark ?')

@@ -18,4 +18,32 @@ class RegularNotification extends Model
         'sub_type',
         'firebase_topic',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'sent_at' => 'datetime',
+        ];
+    }
+
+    public function getImageUrlAttribute(): ?string
+    {
+        return $this->publicFileUrl($this->image);
+    }
+
+    public function getVideoUrlAttribute(): ?string
+    {
+        return $this->publicFileUrl($this->video);
+    }
+
+    private function publicFileUrl(?string $path): ?string
+    {
+        if (! $path) {
+            return null;
+        }
+
+        return str_starts_with($path, 'http')
+            ? $path
+            : asset('storage/'.ltrim($path, '/'));
+    }
 }

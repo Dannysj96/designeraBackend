@@ -163,7 +163,7 @@ class VideoForm
                                 'Right' => 'Right',
                                 'No' => 'No',
                             ])
-                            ->default('No'),
+                            ->default('Left'),
 
                         Radio::make('remove_watermark')
                             ->label('Remove Watermark ?')
