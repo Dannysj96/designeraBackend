@@ -774,25 +774,28 @@
                 <table id="usersTable" class="dataTable" style="width: 100%;">
                     <thead>
                         <tr>
-                            <th style="width: 32px; text-align: center;">#</th>
-                            <th style="min-width: 170px;">User Profile</th>
-                            <th style="min-width: 140px;">Contact</th>
-                            <th style="min-width: 130px;">Location & Party</th>
-                            <th style="min-width: 140px;">Limits & Privileges</th>
-                            <th style="width: 90px; text-align: center;">Social</th>
-                            <th style="width: 80px; text-align: center;">Status</th>
-                            <th style="width: 125px; text-align: center;">Template</th>
-                            <th style="width: 85px; text-align: right;">Action</th>
+                            <th style="width: 36px; text-align: center;">#</th>
+                            <th style="min-width: 210px;">User</th>
+                            <th style="min-width: 145px;">Contact</th>
+                            <th style="min-width: 135px;">Party & Location</th>
+                            <th style="min-width: 210px;">Plan & Limits</th>
+                            <th style="width: 90px; text-align: center;">Status</th>
+                            <th style="width: 165px; text-align: center;">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
                         @foreach ($this->users as $user)
+                            @php
+                                $activePlan = $user->activePlanHistory;
+                                $currentPlanName = $activePlan ? $activePlan->plan_name : ($user->plan?->name ?? ($user->plan_id ? 'Plan #' . $user->plan_id : '24 hrs Free Trial'));
+                                $remDays = $activePlan ? $activePlan->remaining_days : null;
+                            @endphp
                             <tr id="user-row-{{ $user->id }}">
                                 <td style="font-weight: 600; color: #a1a1aa; text-align: center;">
                                     #{{ $user->id }}
                                 </td>
                                 <td>
-                                    {{-- CLEAN USER PROFILE: AVATAR + NAME + WALLET --}}
+                                    {{-- Keep the user's identifying details together. --}}
                                     <div style="display: flex; align-items: center; gap: 9px;">
                                         {{-- User Photo or Initials --}}
                                         @if ($user->profile_photo_url)
@@ -805,44 +808,43 @@
                                             </div>
                                         @endif
 
-                                        {{-- Name & Details --}}
-                                        <div>
-                                            <div style="font-weight: 600; font-size: 13px;" class="text-primary">
+                                        <div style="min-width: 0;">
+                                            <div style="font-weight: 600; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" class="text-primary" title="{{ $user->name }}">
                                                 {{ $user->name }}
                                             </div>
-                                            @php
-                                                $activePlan = $user->activePlanHistory;
-                                                $currentPlanName = $activePlan ? $activePlan->plan_name : ($user->plan?->name ?? ($user->plan_id ? 'Plan #' . $user->plan_id : '24 hrs Free Trial'));
-                                                $remDays = $activePlan ? $activePlan->remaining_days : null;
-                                            @endphp
-                                            <div style="font-size: 11px; color: #a1a1aa; display: flex; align-items: center; gap: 4px; flex-wrap: wrap; margin-top: 2px;">
+                                            <div style="font-size: 11px; color: #71717a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 3px;" title="{{ $user->email }}">
+                                                {{ $user->email }}
+                                            </div>
+                                            <div style="font-size: 10px; margin-top: 3px;">
                                                 <span class="badge-lang">{{ $user->language ?? 'en' }}</span>
-                                                <span>&bull;</span>
-                                                <span title="Wallet Balance" class="text-strong" style="font-size: 11px;">₹{{ number_format($user->wallet_balance ?? 0, 0) }}</span>
-                                                <span>&bull;</span>
-                                                <button type="button"
-                                                        onclick="openPlanHistoryModal({{ $user->id }}, '{{ addslashes($user->name) }}')"
-                                                        class="badge-plan-trigger"
-                                                        title="Click to view Plan History">
-                                                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
-                                                    <span>{{ $currentPlanName }}</span>
-                                                    @if ($remDays !== null && $remDays > 0)
-                                                        <span style="opacity: 0.85; font-size: 9.5px;">({{ $remDays }}d)</span>
-                                                    @endif
-                                                </button>
                                             </div>
                                         </div>
                                     </div>
                                 </td>
                                 <td>
-                                    <div style="font-size: 12.5px;" class="text-primary font-medium">
-                                        {{ $user->email }}
-                                    </div>
                                     @if ($user->mobile)
-                                        <div style="font-size: 11px; color: #71717a; display: flex; align-items: center; gap: 3px; margin-top: 1px;">
-                                            <span>&#9742;</span> {{ $user->mobile }}
+                                        <div style="font-size: 12px; color: #3f3f46; display: flex; align-items: center; gap: 5px; white-space: nowrap;" class="dark:text-zinc-200">
+                                            <span aria-hidden="true">&#9742;</span>
+                                            <span>{{ $user->mobile }}</span>
                                         </div>
                                     @endif
+                                    <div style="display: flex; align-items: center; gap: 5px; margin-top: 6px;">
+                                        @if ($user->whatsapp)
+                                            <a href="https://wa.me/{{ preg_replace('/[^0-9]/', '', $user->whatsapp) }}" target="_blank" title="WhatsApp: {{ $user->whatsapp }}" class="social-icon-link">WA</a>
+                                        @endif
+                                        @if ($user->facebook)
+                                            <a href="{{ $user->facebook }}" target="_blank" title="Facebook" class="social-icon-link">f</a>
+                                        @endif
+                                        @if ($user->twitter)
+                                            <a href="{{ str_starts_with($user->twitter, 'http') ? $user->twitter : 'https://x.com/' . ltrim($user->twitter, '@') }}" target="_blank" title="Twitter / X" class="social-icon-link">X</a>
+                                        @endif
+                                        @if ($user->instagram)
+                                            <a href="{{ str_starts_with($user->instagram, 'http') ? $user->instagram : 'https://instagram.com/' . ltrim($user->instagram, '@') }}" target="_blank" title="Instagram" class="social-icon-link">IG</a>
+                                        @endif
+                                        @if (!$user->whatsapp && !$user->facebook && !$user->twitter && !$user->instagram)
+                                            <span style="color: #a1a1aa; font-size: 10px;">No social links</span>
+                                        @endif
+                                    </div>
                                 </td>
                                 <td>
                                     @if ($user->party)
@@ -859,9 +861,22 @@
                                     </div>
                                 </td>
                                 <td>
-                                    <div style="font-size: 11px;" class="text-primary">
-                                        <span style="color: #71717a;">Limits:</span>
-                                        <strong>{{ $user->daily_download_limit_video ?? 0 }}</strong> vid / <strong>{{ $user->daily_download_limit_design ?? 0 }}</strong> des
+                                    <div style="margin-bottom: 5px;">
+                                        <button type="button"
+                                                onclick="openPlanHistoryModal({{ $user->id }}, '{{ addslashes($user->name) }}')"
+                                                class="badge-plan-trigger"
+                                                title="View plan history">
+                                            <span>{{ $currentPlanName }}</span>
+                                            @if ($remDays !== null && $remDays > 0)
+                                                <span style="opacity: 0.75;">{{ $remDays }}d</span>
+                                            @endif
+                                        </button>
+                                    </div>
+                                    <div style="font-size: 11px; color: #71717a;">
+                                        <span title="Wallet balance">₹{{ number_format($user->wallet_balance ?? 0, 0) }}</span>
+                                        <span aria-hidden="true">&nbsp;·&nbsp;</span>
+                                        <strong>{{ $user->daily_download_limit_video ?? 0 }}</strong> videos /
+                                        <strong>{{ $user->daily_download_limit_design ?? 0 }}</strong> designs
                                     </div>
                                     <div style="display: flex; align-items: center; gap: 4px; margin-top: 3px;">
                                         @if ($user->remove_watermark)
@@ -872,33 +887,6 @@
                                         @endif
                                         @if (!$user->remove_watermark && !$user->remove_copyright)
                                             <span style="color: #a1a1aa; font-size: 10.5px;">Standard</span>
-                                        @endif
-                                    </div>
-                                </td>
-                                <td>
-                                    <div style="display: flex; align-items: center; justify-content: center; gap: 4px;">
-                                        @if ($user->whatsapp)
-                                            <a href="https://wa.me/{{ preg_replace('/[^0-9]/', '', $user->whatsapp) }}" target="_blank" title="WhatsApp: {{ $user->whatsapp }}" class="social-icon-link">
-                                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
-                                            </a>
-                                        @endif
-                                        @if ($user->facebook)
-                                            <a href="{{ $user->facebook }}" target="_blank" title="Facebook" class="social-icon-link">
-                                                <span style="font-size: 11px; font-weight: 700;">f</span>
-                                            </a>
-                                        @endif
-                                        @if ($user->twitter)
-                                            <a href="{{ str_starts_with($user->twitter, 'http') ? $user->twitter : 'https://x.com/' . ltrim($user->twitter, '@') }}" target="_blank" title="Twitter / X" class="social-icon-link">
-                                                <span style="font-size: 10px; font-weight: 700;">X</span>
-                                            </a>
-                                        @endif
-                                        @if ($user->instagram)
-                                            <a href="{{ str_starts_with($user->instagram, 'http') ? $user->instagram : 'https://instagram.com/' . ltrim($user->instagram, '@') }}" target="_blank" title="Instagram" class="social-icon-link">
-                                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line></svg>
-                                            </a>
-                                        @endif
-                                        @if (!$user->whatsapp && !$user->facebook && !$user->twitter && !$user->instagram)
-                                            <span style="color: #a1a1aa; font-size: 11px;">—</span>
                                         @endif
                                     </div>
                                 </td>
@@ -997,31 +985,24 @@
                                             </div>
                                         </div>
 
-                                    </div>
-                                </td>
-
-                                {{-- ACTION COLUMN (SEPARATE CLEAN EDIT & DELETE) --}}
-                                <td style="text-align: right; vertical-align: middle; white-space: nowrap;">
-                                    <div style="display: inline-flex; align-items: center; justify-content: flex-end; gap: 5px;">
                                         <a href="{{ route('filament.admin.resources.users.edit', ['record' => $user->id]) }}"
                                            class="btn-action-primary"
-                                           title="Edit User">
+                                           title="Edit user">
                                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                                 <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
                                                 <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
                                             </svg>
-                                            <span>Edit</span>
                                         </a>
-
                                         <button type="button"
                                                 onclick="confirmDeleteUser({{ $user->id }}, '{{ addslashes($user->name) }}')"
                                                 class="btn-action-danger"
-                                                title="Delete User">
+                                                title="Delete user">
                                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                                 <polyline points="3 6 5 6 21 6"></polyline>
                                                 <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
                                             </svg>
                                         </button>
+
                                     </div>
                                 </td>
                             </tr>
@@ -1360,7 +1341,7 @@
                 order: [[0, 'desc']],
                 pageLength: 10,
                 columnDefs: [
-                    { orderable: false, targets: [5, 7, 8] } // Disable sorting on Social, Template, and Action columns
+                    { orderable: false, targets: [5, 6] } // Status and actions are not sortable.
                 ]
             });
         }

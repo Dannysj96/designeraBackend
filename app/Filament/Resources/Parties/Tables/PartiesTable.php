@@ -4,7 +4,6 @@ namespace App\Filament\Resources\Parties\Tables;
 
 use App\Filament\Helpers\LocationHelper;
 use App\Helpers\FileManagerAction;
-use App\Models\Location;
 use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
@@ -12,7 +11,6 @@ use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Repeater;
-use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Schemas\Components\Grid;
@@ -57,7 +55,7 @@ class PartiesTable
                         }
 
                         return [
-                            'top_templates'    => $record->top_image ?? [],
+                            'top_templates' => $record->top_image ?? [],
                             // FIXED: Map dynamic frame keys instead of hardcoded 7/8/9/10
                             'bottom_templates' => collect($record->bottom_image ?? [])
                                 ->map(function (array $template) use ($bottomFrameKeys): array {
@@ -65,20 +63,24 @@ class PartiesTable
                                     foreach ($bottomFrameKeys as $frameKey) {
                                         $mapped[$frameKey] = $template[$frameKey] ?? null;
                                     }
+
                                     return $mapped;
                                 })
                                 ->all(),
-                            'margin_left'   => $margin['margin_left']   ?? 0,
-                            'margin_right'  => $margin['margin_right']  ?? 0,
-                            'margin_top'    => $margin['margin_top']    ?? 0,
+                            'margin_left' => $margin['margin_left'] ?? 0,
+                            'margin_right' => $margin['margin_right'] ?? 0,
+                            'margin_top' => $margin['margin_top'] ?? 0,
                             'margin_bottom' => $margin['margin_bottom'] ?? 0,
                         ];
                     })
                     ->schema([
-                        Grid::make(3)->schema([
-                            // TOP TEMPLATES: Takes 1/3 of the space
+                        Grid::make([
+                            'default' => 1,
+                            'xl' => 4,
+                        ])->schema([
+                            // Keep the top templates compact and give the bottom templates most of the width.
                             Section::make('Top Templates')
-                                ->columnSpan(1)
+                                ->columnSpan(['default' => 1, 'xl' => 1])
                                 ->columns(1)
                                 ->schema([
                                     Repeater::make('top_templates')
@@ -88,7 +90,12 @@ class PartiesTable
                                                 ->image()
                                                 ->disk('public')
                                                 ->directory('party-templates/top')
-                                                ->imagePreviewHeight('100')
+                                                ->imagePreviewHeight('92')
+                                                ->panelAspectRatio('2:1')
+                                                ->panelLayout('integrated')
+                                                ->uploadButtonPosition('center')
+                                                ->loadingIndicatorPosition('center')
+                                                ->hintAction(FileManagerAction::make()->label('Browse File Manager'))
                                                 ->nullable(),
                                             LocationHelper::stateSelect(false, true),
                                         ])
@@ -96,9 +103,9 @@ class PartiesTable
                                         ->addActionLabel('Add New Top Template'),
                                 ]),
 
-                            // BOTTOM TEMPLATES: Takes 2/3 of the space
+                            // Bottom template fields use most of the available width.
                             Section::make('Bottom Templates')
-                                ->columnSpan(2)
+                                ->columnSpan(['default' => 1, 'xl' => 3])
                                 ->columns(1)
                                 ->schema([
                                     Repeater::make('bottom_templates')
@@ -111,8 +118,12 @@ class PartiesTable
                                                         ->image()
                                                         ->directory('party-templates/bottom')
                                                         ->imageEditor()
-                                                        ->imagePreviewHeight('150')
-                                                        ->hintAction(FileManagerAction::make());
+                                                        ->imagePreviewHeight('92')
+                                                        ->panelAspectRatio('2:1')
+                                                        ->panelLayout('integrated')
+                                                        ->uploadButtonPosition('center')
+                                                        ->loadingIndicatorPosition('center')
+                                                        ->hintAction(FileManagerAction::make()->label('Browse File Manager'));
                                                 })->toArray()
                                             ),
                                         ])
@@ -134,10 +145,10 @@ class PartiesTable
                     ->action(function (Model $record, array $data) use ($bottomFrameKeys) {
                         // 1. Process Top Templates
                         $topTemplates = collect($data['top_templates'] ?? [])
-                            ->map(fn(array $template): array => [
+                            ->map(fn (array $template): array => [
                                 'top_image' => $template['top_image'] ?? null,
                                 'state' => collect((array) ($template['state'] ?? []))
-                                    ->map(fn($stateId): string => (string) $stateId)
+                                    ->map(fn ($stateId): string => (string) $stateId)
                                     ->values()
                                     ->all(),
                             ])
@@ -151,6 +162,7 @@ class PartiesTable
                                 foreach ($bottomFrameKeys as $frameKey) {
                                     $mapped[$frameKey] = $template[$frameKey] ?? null;
                                 }
+
                                 return $mapped;
                             })
                             ->values()
@@ -158,9 +170,9 @@ class PartiesTable
 
                         // 3. Process Margins
                         $margin = [
-                            'margin_left'   => $data['margin_left'] ?? 0,
-                            'margin_right'  => $data['margin_right'] ?? 0,
-                            'margin_top'    => $data['margin_top'] ?? 0,
+                            'margin_left' => $data['margin_left'] ?? 0,
+                            'margin_right' => $data['margin_right'] ?? 0,
+                            'margin_top' => $data['margin_top'] ?? 0,
                             'margin_bottom' => $data['margin_bottom'] ?? 0,
                         ];
 
@@ -174,10 +186,10 @@ class PartiesTable
 
                         // 5. Save to the Database
                         $record->update([
-                            'top_image'    => $topTemplates,
+                            'top_image' => $topTemplates,
                             'bottom_image' => $bottomTemplates,
-                            'states'       => $allStates,
-                            'margin'       => $margin,
+                            'states' => $allStates,
+                            'margin' => $margin,
                         ]);
 
                         Notification::make()
