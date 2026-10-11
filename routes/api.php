@@ -1300,6 +1300,7 @@ Route::prefix('v1')->group(function () {
         $maskingItems = collect($maskings->items())->map(function (DesignMasking $masking) {
             $item = $masking->toArray();
             if (filled($masking->design)) {
+                $item['original_url'] = FileManager::publicOriginalUrl($masking->design);
                 $item['design'] = FileManager::publicThumbnailUrl($masking->design);
                 $item['design_url'] = $item['design'];
             }
@@ -1568,6 +1569,7 @@ Route::prefix('v1')->group(function () {
         $todayDesigns = $buildDateQuery($today)->map(function (Design $item) {
             $item->day_type = 'today';
             if (filled($item->design)) {
+                $item->original_url = FileManager::publicOriginalUrl($item->design);
                 $item->design = FileManager::publicThumbnailUrl($item->design);
             }
 
@@ -1577,6 +1579,7 @@ Route::prefix('v1')->group(function () {
         $tomorrowDesigns = $buildDateQuery($tomorrow)->map(function (Design $item) {
             $item->day_type = 'tomorrow';
             if (filled($item->design)) {
+                $item->original_url = FileManager::publicOriginalUrl($item->design);
                 $item->design = FileManager::publicThumbnailUrl($item->design);
             }
 
@@ -1713,6 +1716,7 @@ Route::prefix('v1')->group(function () {
             }
 
             if (filled($item->design)) {
+                $item->original_url = FileManager::publicOriginalUrl($item->design);
                 $item->design = FileManager::publicThumbnailUrl($item->design);
             }
 
@@ -2092,6 +2096,7 @@ Route::prefix('v1')->group(function () {
             'data' => collect($maskings->items())->map(function (DesignMasking $masking) {
                 $item = $masking->toArray();
                 if (filled($masking->design)) {
+                    $item['original_url'] = FileManager::publicOriginalUrl($masking->design);
                     $item['design'] = FileManager::publicThumbnailUrl($masking->design);
                     $item['design_url'] = $item['design'];
                 }
