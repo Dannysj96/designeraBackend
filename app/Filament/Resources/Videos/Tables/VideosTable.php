@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Videos\Tables;
 
+use App\Helpers\FileManager;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
@@ -19,6 +20,7 @@ class VideosTable
             ->columns([
                 ImageColumn::make('thumbnail')
                     ->label('Thumbnail')
+                    ->state(fn ($state) => filled($state) ? FileManager::mediaUrl($state) : null)
                     ->square(),
                 TextColumn::make('price')
                     ->label('Price')

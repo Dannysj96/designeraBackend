@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\SpecialDays\Tables;
 
+use App\Helpers\FileManager;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
@@ -23,6 +24,7 @@ class SpecialDaysTable
                     ->sortable(),
                 ImageColumn::make('image')
                     ->label('Image')
+                    ->state(fn ($state) => filled($state) ? FileManager::mediaUrl($state) : null)
                     ->square(),
                 TextColumn::make('name')
                     ->label('Name')

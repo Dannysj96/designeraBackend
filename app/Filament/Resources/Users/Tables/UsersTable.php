@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Users\Tables;
 
+use App\Helpers\FileManager;
 use App\Models\Location;
 use App\Models\Party;
 use App\Models\Plan;
@@ -28,6 +29,7 @@ class UsersTable
                 ImageColumn::make('profile_pic')
                     ->label('Photo')
                     ->circular()
+                    ->state(fn ($state) => filled($state) ? FileManager::mediaUrl($state) : null)
                     ->disk('public')
                     ->defaultImageUrl(fn ($record) => $record->profile_photo_url),
 
