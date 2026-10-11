@@ -200,13 +200,21 @@ class FileManager
 
         $disk = Storage::disk('public');
         if (str_starts_with($path, '_thumbnails/')) {
-            return self::publicMediaUrl($path);
+            if ($disk->exists($path)) {
+                return self::publicMediaUrl($path);
+            }
+
+            return self::publicThumbnailUrl(substr($path, strlen('_thumbnails/')));
         }
 
         $thumbnailPath = self::getThumbnailPath($path);
 
         if (! $disk->exists($thumbnailPath)) {
             self::createThumbnail($path);
+        }
+
+        if (! $disk->exists($thumbnailPath) && ! $disk->exists($path)) {
+            return '';
         }
 
         if (in_array(strtolower(pathinfo($path, PATHINFO_EXTENSION)), ['mp4', 'webm', 'mov', 'avi'], true) && ! $disk->exists($thumbnailPath)) {
@@ -245,6 +253,10 @@ class FileManager
         $disk = Storage::disk('public');
         if (! $disk->exists($path) && $disk->exists(self::getThumbnailPath($path))) {
             $path = self::getThumbnailPath($path);
+        }
+
+        if (! $disk->exists($path)) {
+            return '';
         }
 
         return url('/api/v1/media').'?path='.rawurlencode($path);
