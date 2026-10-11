@@ -93,6 +93,54 @@ Route::prefix('v1')->group(function () {
         ]);
     });
 
+    // Dashboard home listing used by the Flutter app.
+    Route::post('/home_listing', function (Request $request) {
+        $request->validate([
+            'app_key' => ['required', 'string', 'max:50'],
+        ]);
+
+        $parentCategories = ParentCategory::query()
+            ->where('status', 1)
+            ->with(['categories' => function ($query) {
+                $query->where('status', 1)->orderBy('id');
+            }])
+            ->orderByRaw('CASE WHEN sequence > 0 THEN sequence ELSE 999999 END ASC')
+            ->orderBy('id')
+            ->get();
+
+        $data = $parentCategories->map(function (ParentCategory $parentCategory): array {
+            $name = (string) $parentCategory->name;
+            $normalizedName = Str::lower($name);
+            $redirectKey = match ($normalizedName) {
+                'special days' => 'special_day',
+                'design editor' => 'design_editor',
+                'political design' => 'political_design',
+                'good thought. सुविचार' => 'good_thought',
+                'best quote' => 'motivational_quote',
+                default => Str::slug($name, '_'),
+            };
+
+            return [
+                'id' => $parentCategory->id,
+                'title' => $name,
+                'redirect_key' => $redirectKey,
+                'images' => [],
+                'category' => $parentCategory->categories
+                    ->map(fn (Category $category): array => [
+                        'id' => $category->id,
+                        'name' => (string) $category->name,
+                    ])
+                    ->values(),
+            ];
+        })->values();
+
+        return response()->json([
+            'status' => true,
+            'count' => $data->count(),
+            'data' => $data,
+        ]);
+    });
+
     // ==========================================
     // 3. Authentication & User Profile (Token Based - Sanctum)
     // ==========================================
