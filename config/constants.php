@@ -9,9 +9,8 @@ return [
     ],
 
     'languages' => [
-        'marathi' => 'Marathi',
-        'hindi' => 'Hindi',
-        'english' => 'English',
-        'gujarati' => 'Gujarati',
+        '1' => 'English',
+        '2' => 'Hindi',
+        '3' => 'Marathi',
     ],
 ];
