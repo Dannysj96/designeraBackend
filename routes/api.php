@@ -1436,12 +1436,12 @@ Route::prefix('v1')->group(function () {
     // 8. Parties API
     // ==========================================
     $formatPartyImages = static function (Party $party): Party {
-        $imageFields = ['image', 'party_image', 'symbol', 'custom_image'];
+        $imageFields = ['image', 'party_image', 'symbol', 'custom_image', 'top_image', 'bottom_image'];
         $formatImageValue = null;
-        $formatImageValue = static function (mixed $value) use (&$formatImageValue): mixed {
+        $formatImageValue = static function (mixed $value, bool $original = false) use (&$formatImageValue): mixed {
             if (is_array($value)) {
                 foreach ($value as $key => $nestedValue) {
-                    $value[$key] = $formatImageValue($nestedValue);
+                    $value[$key] = $formatImageValue($nestedValue, $original);
                 }
 
                 return $value;
@@ -1454,7 +1454,9 @@ Route::prefix('v1')->group(function () {
                     return $value;
                 }
 
-                return FileManager::publicThumbnailUrl($value);
+                return $original
+                    ? FileManager::publicOriginalUrl($value)
+                    : FileManager::publicThumbnailUrl($value);
             }
 
             return $value;
@@ -1462,7 +1464,10 @@ Route::prefix('v1')->group(function () {
 
         foreach ($imageFields as $imageField) {
             if (filled($party->{$imageField})) {
-                $party->{$imageField} = $formatImageValue($party->{$imageField});
+                $party->{$imageField} = $formatImageValue(
+                    $party->{$imageField},
+                    in_array($imageField, ['top_image', 'bottom_image'], true),
+                );
             }
         }
 
@@ -2340,6 +2345,13 @@ Route::prefix('v1')->group(function () {
             $query->where('status', $request->input('status'));
         }
         $templates = $query->latest()->get();
+        $templates->each(function (UserPremiumTemplate $template): void {
+            foreach (['middle_image', 'top_image', 'bottom_image'] as $imageField) {
+                if (filled($template->{$imageField})) {
+                    $template->{$imageField} = FileManager::publicOriginalUrl($template->{$imageField});
+                }
+            }
+        });
 
         return response()->json([
             'status' => 'success',
