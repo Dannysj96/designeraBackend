@@ -26,6 +26,7 @@ use App\Models\UserPlanHistory;
 use App\Models\UserPremiumTemplate;
 use App\Models\Video;
 use Carbon\Carbon;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -1377,9 +1378,25 @@ Route::prefix('v1')->group(function () {
      */
     $handleDesignView = function (Request $request, $id = null) {
         $designId = $id ?: $request->input('design_id');
-        $designType = strtolower((string) $request->input('design_type', 'design'));
-        $designType = in_array($designType, ['design_masking', 'masking'], true) ? 'design_masking' : 'design';
-        $design = $designType === 'design_masking' ? DesignMasking::find($designId) : Design::find($designId);
+        $requestedType = strtolower((string) $request->input('design_type', 'design'));
+        if (! in_array($requestedType, ['design', 'design_masking', 'masking', 'video'], true)) {
+            return response()->json(['status' => 'error', 'message' => 'Invalid design type'], 422);
+        }
+
+        if (! is_numeric($designId) || (int) $designId < 1) {
+            return response()->json(['status' => 'error', 'message' => 'A valid design ID is required'], 422);
+        }
+
+        $designType = match ($requestedType) {
+            'video' => 'video',
+            'design_masking', 'masking' => 'design_masking',
+            default => 'design',
+        };
+        $design = match ($designType) {
+            'video' => Video::find($designId),
+            'design_masking' => DesignMasking::find($designId),
+            default => Design::find($designId),
+        };
         if (! $design) {
             return response()->json(['status' => 'error', 'message' => 'Design not found'], 404);
         }
@@ -1390,37 +1407,44 @@ Route::prefix('v1')->group(function () {
         $deviceId = $request->input('device_id', $request->header('X-Device-Id'));
         $ip = $request->ip();
 
-        $alreadyViewed = false;
-
+        $viewQuery = DesignView::where('design_id', $design->id)
+            ->where('design_type', $designType);
         if ($userId) {
-            $alreadyViewed = DesignView::where('design_id', $design->id)
-                ->where('design_type', $designType)
-                ->where('user_id', $userId)
-                ->exists();
+            $viewQuery->where('user_id', $userId);
         } elseif (! empty($deviceId)) {
-            $alreadyViewed = DesignView::where('design_id', $design->id)
-                ->where('design_type', $designType)
-                ->where('device_id', $deviceId)
-                ->exists();
+            $viewQuery->where('device_id', $deviceId);
+        } else {
+            $viewQuery->whereNull('user_id')->whereNull('device_id')->where('ip_address', $ip);
         }
 
-        $newView = false;
-        if (! $alreadyViewed) {
-            try {
-                DesignView::create([
-                    'design_type' => $designType,
-                    'design_id' => $design->id,
-                    'user_id' => $userId,
-                    'device_id' => $deviceId,
-                    'ip_address' => $ip,
-                ]);
-                $newView = true;
-            } catch (Throwable $e) {
-                // Ignore race condition on duplicate
-            }
+        $newView = ! $viewQuery->exists();
 
-            if ($newView) {
-                $design->increment('views');
+        if ($newView) {
+            try {
+                DB::transaction(function () use ($design, $designType, $deviceId, $ip, $userId): void {
+                    DesignView::create([
+                        'design_type' => $designType,
+                        'design_id' => $design->id,
+                        'user_id' => $userId,
+                        'device_id' => $deviceId,
+                        'ip_address' => $ip,
+                    ]);
+
+                    $design->increment('views');
+                });
+            } catch (QueryException $exception) {
+                $isDuplicateView = DesignView::where('design_id', $design->id)
+                    ->where('design_type', $designType)
+                    ->when($userId, fn ($query) => $query->where('user_id', $userId))
+                    ->when(! $userId && filled($deviceId), fn ($query) => $query->where('device_id', $deviceId))
+                    ->when(! $userId && blank($deviceId), fn ($query) => $query->whereNull('user_id')->whereNull('device_id')->where('ip_address', $ip))
+                    ->exists();
+
+                if (! $isDuplicateView) {
+                    throw $exception;
+                }
+
+                $newView = false;
             }
         }
 
@@ -1598,7 +1622,7 @@ Route::prefix('v1')->group(function () {
             'pincode' => $request->input('pincode'),
         ]);
 
-        if (! $isVideo && Schema::hasColumn($design->getTable(), 'downloads')) {
+        if (Schema::hasColumn($design->getTable(), 'downloads')) {
             $design->increment('downloads');
         }
 
