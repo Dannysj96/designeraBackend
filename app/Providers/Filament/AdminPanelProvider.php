@@ -5,6 +5,7 @@ namespace App\Providers\Filament;
 use App\Filament\Pages\ApiTester;
 use App\Filament\Pages\Dashboard;
 use App\Filament\Pages\Login;
+use App\Filament\Pages\MediaLibrary;
 use App\Filament\Pages\PremiumTemplates;
 use App\Filament\Pages\Settings;
 use App\Filament\Resources\Ads\AdsResource;
@@ -77,6 +78,7 @@ class AdminPanelProvider extends PanelProvider
                 ->group(NavigationGroup::make()->items([
                     ...Dashboard::getNavigationItems(),
                     ...UserResource::getNavigationItems(),
+                    ...MediaLibrary::getNavigationItems(),
                 ]))
                 ->group(NavigationGroup::make('Designs')->items([
                     ...DesignResource::getNavigationItems(),
@@ -118,6 +120,7 @@ class AdminPanelProvider extends PanelProvider
                 ])))
             ->pages([
                 Dashboard::class,
+                MediaLibrary::class,
                 ApiTester::class,
                 PremiumTemplates::class,
                 Settings::class,
