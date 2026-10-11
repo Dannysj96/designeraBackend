@@ -19,7 +19,7 @@ class ReadyTextsTable
             ->columns([
                 ImageColumn::make('image')
                     ->label('Ready Text')
-                    ->state(fn ($state) => filled($state) ? FileManager::mediaUrl($state) : null)
+                    ->state(fn ($record) => filled($record->image) ? FileManager::mediaUrl($record->image) : null)
                     ->square(),
                 TextColumn::make('parentCategory.name')
                     ->label('Parent Category')
