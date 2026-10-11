@@ -134,7 +134,7 @@ class FileManager
         $thumbnailPath = '_thumbnails/'.$file;
 
         if (in_array($extension, ['mp4', 'webm', 'mov', 'avi'], true)) {
-            return substr($thumbnailPath, 0, -strlen($extension)).'jpg';
+            return substr($thumbnailPath, 0, -strlen($extension)).'last-frame.jpg';
         }
 
         return $thumbnailPath;
@@ -293,7 +293,7 @@ class FileManager
                 'ffmpeg',
                 '-hide_banner',
                 '-loglevel', 'error',
-                '-ss', '00:00:01',
+                '-sseof', '-0.1',
                 '-i', $disk->path($filePath),
                 '-frames:v', '1',
                 '-vf', 'scale=320:320:force_original_aspect_ratio=decrease',
