@@ -217,14 +217,22 @@
     }
 
     /* Form labels */
-    label, .fi-label, .fi-fo-field-wrp-label label {
+    .fi-simple-page-content label,
+    .fi-simple-page-content .fi-label,
+    .fi-simple-page-content .fi-fo-field-wrp-label,
+    .fi-simple-page-content .fi-label .fi-label-content,
+    .fi-simple-page-content .fi-fo-field-wrp-label label span:not(.fi-required-mark) {
         color: #334155 !important;
+        -webkit-text-fill-color: #334155 !important;
         font-size: 0.8125rem !important;
         font-weight: 600 !important;
         letter-spacing: 0.01em !important;
         margin-bottom: 0.2rem !important;
     }
-    .fi-required-mark { color: #ef4444 !important; }
+    .fi-simple-page-content .fi-required-mark {
+        color: #ef4444 !important;
+        -webkit-text-fill-color: #ef4444 !important;
+    }
 
     /* Inputs container wrapper */
     .fi-input-wrp {
