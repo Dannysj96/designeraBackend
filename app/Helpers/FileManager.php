@@ -24,9 +24,9 @@ class FileManager
                 }
 
                 $folders[] = [
-                    'path'          => $dir,
-                    'name'          => $base,
-                    'last_modified' => $disk->exists($dir) ? date('jM Y, g:i A', $disk->lastModified($dir . '/.')) : '',
+                    'path' => $dir,
+                    'name' => $base,
+                    'last_modified' => $disk->exists($dir) ? date('jM Y, g:i A', $disk->lastModified($dir.'/.')) : '',
                 ];
             }
         } catch (\Throwable $e) {
@@ -38,12 +38,12 @@ class FileManager
                     if ($item === '.' || $item === '..' || $item === '_thumbnails' || str_starts_with($item, '.')) {
                         continue;
                     }
-                    $full = $basePath . '/' . $item;
+                    $full = $basePath.'/'.$item;
                     if (is_dir($full)) {
-                        $rel = $directory ? ($directory . '/' . $item) : $item;
+                        $rel = $directory ? ($directory.'/'.$item) : $item;
                         $folders[] = [
-                            'path'          => $rel,
-                            'name'          => $item,
+                            'path' => $rel,
+                            'name' => $item,
                             'last_modified' => date('jM Y, g:i A', @filemtime($full) ?: time()),
                         ];
                     }
@@ -59,7 +59,7 @@ class FileManager
      */
     public static function getMediaFiles(string $subDirectory = ''): array
     {
-        $disk  = Storage::disk('public');
+        $disk = Storage::disk('public');
         $mediaFiles = [];
 
         try {
@@ -73,9 +73,9 @@ class FileManager
                     if ($item === '.' || $item === '..' || $item === '_thumbnails' || str_starts_with($item, '.')) {
                         continue;
                     }
-                    $full = $basePath . '/' . $item;
+                    $full = $basePath.'/'.$item;
                     if (is_file($full)) {
-                        $files[] = $subDirectory ? ($subDirectory . '/' . $item) : $item;
+                        $files[] = $subDirectory ? ($subDirectory.'/'.$item) : $item;
                     }
                 }
             }
@@ -101,12 +101,12 @@ class FileManager
                 }
 
                 $mediaFiles[] = [
-                    'path'          => $file,
-                    'url'           => asset('storage/' . $file),
-                    'thumb_url'     => self::getThumbnailUrl($file),
-                    'name'          => $base,
-                    'is_video'      => in_array($extension, ['mp4', 'webm', 'mov', 'avi']),
-                    'size'          => self::formatSize($size),
+                    'path' => $file,
+                    'url' => self::mediaUrl($file),
+                    'thumb_url' => self::getThumbnailUrl($file),
+                    'name' => $base,
+                    'is_video' => in_array($extension, ['mp4', 'webm', 'mov', 'avi']),
+                    'size' => self::formatSize($size),
                     'last_modified' => date('jM Y, g:i A', $mtime),
                 ];
             }
@@ -123,7 +123,7 @@ class FileManager
      */
     public static function getThumbnailPath(string $file): string
     {
-        return '_thumbnails/' . $file;
+        return '_thumbnails/'.$file;
     }
 
     /**
@@ -133,7 +133,7 @@ class FileManager
     {
         $extension = strtolower(pathinfo($file, PATHINFO_EXTENSION));
         if (! in_array($extension, ['jpg', 'jpeg', 'png', 'webp', 'gif'])) {
-            return asset('storage/' . $file);
+            return asset('storage/'.$file);
         }
 
         $thumbRel = self::getThumbnailPath($file);
@@ -144,10 +144,18 @@ class FileManager
         }
 
         if ($disk->exists($thumbRel)) {
-            return asset('storage/' . $thumbRel);
+            return self::mediaUrl($thumbRel);
         }
 
-        return asset('storage/' . $file);
+        return self::mediaUrl($file);
+    }
+
+    /**
+     * Build an authenticated URL for media stored on the public disk.
+     */
+    public static function mediaUrl(string $path): string
+    {
+        return url('/admin/file-manager/media').'?path='.rawurlencode($path);
     }
 
     /**
@@ -229,7 +237,8 @@ class FileManager
     public static function createFolder(string $parentDirectory, string $folderName): bool
     {
         $disk = Storage::disk('public');
-        $path = trim($parentDirectory . '/' . $folderName, '/');
+        $path = trim($parentDirectory.'/'.$folderName, '/');
+
         return $disk->makeDirectory($path);
     }
 
@@ -244,8 +253,10 @@ class FileManager
             if ($disk->exists($thumb)) {
                 $disk->delete($thumb);
             }
+
             return $disk->delete($path);
         }
+
         return false;
     }
 
@@ -256,12 +267,14 @@ class FileManager
     {
         $disk = Storage::disk('public');
         if ($disk->exists($path)) {
-            $thumbDir = '_thumbnails/' . $path;
+            $thumbDir = '_thumbnails/'.$path;
             if ($disk->exists($thumbDir)) {
                 $disk->deleteDirectory($thumbDir);
             }
+
             return $disk->deleteDirectory($path);
         }
+
         return false;
     }
 
@@ -271,13 +284,13 @@ class FileManager
     public static function formatSize(int $bytes): string
     {
         if ($bytes >= 1073741824) {
-            return number_format($bytes / 1073741824, 2) . ' GB';
+            return number_format($bytes / 1073741824, 2).' GB';
         } elseif ($bytes >= 1048576) {
-            return number_format($bytes / 1048576, 2) . ' MB';
+            return number_format($bytes / 1048576, 2).' MB';
         } elseif ($bytes >= 1024) {
-            return number_format($bytes / 1024, 2) . ' KB';
+            return number_format($bytes / 1024, 2).' KB';
         }
 
-        return $bytes . ' bytes';
+        return $bytes.' bytes';
     }
 }
