@@ -49,6 +49,104 @@ use Laravel\Sanctum\PersonalAccessToken;
 
 Route::prefix('v1')->group(function () {
 
+    $resolveApiUser = function (Request $request): ?User {
+        $user = $request->user('sanctum');
+
+        if (! $user && $request->bearerToken()) {
+            $token = PersonalAccessToken::findToken($request->bearerToken());
+            $user = $token?->tokenable;
+        }
+
+        if (! $user && $request->filled('user_id')) {
+            $user = User::find($request->input('user_id'));
+        }
+
+        return $user instanceof User ? $user : null;
+    };
+
+    Route::get('/get_notification', function (Request $request) use ($resolveApiUser) {
+        $user = $resolveApiUser($request);
+
+        if (! $user) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Authentication or user_id is required.',
+                'data' => [],
+            ], 401);
+        }
+
+        if (! Schema::hasTable('user_notifications')) {
+            return response()->json([
+                'status' => true,
+                'count' => 0,
+                'data' => [],
+            ]);
+        }
+
+        $query = DB::table('user_notifications')
+            ->where('user_notifications.user_id', $user->id)
+            ->select([
+                'user_notifications.id',
+                'user_notifications.notification_id',
+                'user_notifications.data',
+                'user_notifications.created_at',
+            ])
+            ->orderByDesc('user_notifications.id');
+
+        if (Schema::hasTable('notifications')) {
+            $query->leftJoin('notifications', 'notifications.id', '=', 'user_notifications.notification_id')
+                ->addSelect([
+                    'notifications.title as notification_title',
+                    'notifications.message as notification_message',
+                    'notifications.source as notification_source',
+                    'notifications.image as notification_image',
+                ]);
+        }
+
+        $notifications = $query->limit(100)->get()->map(function (object $notification): array {
+            $data = json_decode((string) ($notification->data ?? ''), true);
+            $data = is_array($data) ? $data : [];
+
+            return array_merge($data, [
+                'id' => $notification->notification_id ?? $notification->id,
+                'title' => $data['title'] ?? $notification->notification_title ?? 'Notification',
+                'message' => $data['message'] ?? $notification->notification_message ?? '',
+                'source' => $data['source'] ?? $data['image'] ?? $notification->notification_source ?? $notification->notification_image ?? null,
+                'created_at' => $notification->created_at,
+            ]);
+        });
+
+        return response()->json([
+            'status' => true,
+            'count' => $notifications->count(),
+            'data' => $notifications,
+        ]);
+    });
+
+    Route::get('/get_wallet_history', function (Request $request) use ($resolveApiUser) {
+        $user = $resolveApiUser($request);
+
+        if (! $user) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Authentication or user_id is required.',
+                'transactions' => [],
+            ], 401);
+        }
+
+        $transactions = DB::table('transactions')
+            ->where('user_id', $user->id)
+            ->orderByDesc('id')
+            ->limit(100)
+            ->get(['id', 'amount', 'type', 'description', 'created_at']);
+
+        return response()->json([
+            'status' => true,
+            'count' => $transactions->count(),
+            'transactions' => $transactions,
+        ]);
+    });
+
     Route::get('/media', function (Request $request) {
         $validated = $request->validate([
             'path' => ['required', 'string', 'max:1024'],
