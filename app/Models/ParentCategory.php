@@ -29,7 +29,7 @@ class ParentCategory extends Model
             return null;
         }
 
-        return FileManager::publicMediaUrl($this->image);
+        return FileManager::publicThumbnailUrl($this->image);
     }
 
     public function getTitleAttribute()

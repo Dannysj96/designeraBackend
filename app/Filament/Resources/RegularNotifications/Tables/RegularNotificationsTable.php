@@ -26,7 +26,7 @@ class RegularNotificationsTable
             ->columns([
                 ImageColumn::make('image')
                     ->label('Image')
-                    ->state(fn ($record) => filled($record->image) ? FileManager::mediaUrl($record->image) : null)
+                    ->state(fn ($record) => filled($record->image) ? FileManager::getThumbnailUrl($record->image) : null)
                     ->square(),
                 TextColumn::make('title')
                     ->label('Title')

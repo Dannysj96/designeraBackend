@@ -29,7 +29,7 @@ class RegularNotification extends Model
 
     public function getImageUrlAttribute(): ?string
     {
-        return $this->publicFileUrl($this->image);
+        return $this->publicFileUrl($this->image, thumbnail: true);
     }
 
     public function getVideoUrlAttribute(): ?string
@@ -37,12 +37,14 @@ class RegularNotification extends Model
         return $this->publicFileUrl($this->video);
     }
 
-    private function publicFileUrl(?string $path): ?string
+    private function publicFileUrl(?string $path, bool $thumbnail = false): ?string
     {
         if (! $path) {
             return null;
         }
 
-        return FileManager::publicMediaUrl($path);
+        return $thumbnail
+            ? FileManager::publicThumbnailUrl($path)
+            : FileManager::publicMediaUrl($path);
     }
 }

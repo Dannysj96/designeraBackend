@@ -24,7 +24,7 @@ class AdsTable
             ->columns([
                 ImageColumn::make('image')
                     ->label('Design')
-                    ->state(fn ($record) => filled($record->image) ? FileManager::mediaUrl($record->image) : null)
+                    ->state(fn ($record) => filled($record->image) ? FileManager::getThumbnailUrl($record->image) : null)
                     ->square()
                     ->size(60)
                     ->action(

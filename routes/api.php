@@ -572,7 +572,12 @@ Route::prefix('v1')->group(function () {
         $plans = Plan::query()
             ->where('status', 1)
             ->where('is_display', 1)
-            ->get();
+            ->get()
+            ->each(function (Plan $plan): void {
+                if (filled($plan->image)) {
+                    $plan->image = FileManager::publicThumbnailUrl($plan->image);
+                }
+            });
 
         return response()->json([
             'status' => 'success',
@@ -585,6 +590,10 @@ Route::prefix('v1')->group(function () {
         $plan = Plan::find($id);
         if (! $plan) {
             return response()->json(['status' => 'error', 'message' => 'Plan not found'], 404);
+        }
+
+        if (filled($plan->image)) {
+            $plan->image = FileManager::publicThumbnailUrl($plan->image);
         }
 
         return response()->json(['status' => 'success', 'data' => $plan]);
@@ -770,6 +779,12 @@ Route::prefix('v1')->group(function () {
             $parents = $query->orderBy('id', 'asc')->get();
         }
 
+        $parents->each(function (ParentCategory $parent): void {
+            if (filled($parent->image)) {
+                $parent->image = FileManager::publicThumbnailUrl($parent->image);
+            }
+        });
+
         return response()->json([
             'status' => 'success',
             'whatsapp_number' => Setting::get('whatsapp_number', '919158592601'),
@@ -782,6 +797,10 @@ Route::prefix('v1')->group(function () {
         $parent = ParentCategory::with(['categories.subCategories'])->find($id);
         if (! $parent) {
             return response()->json(['status' => 'error', 'message' => 'Parent category not found'], 404);
+        }
+
+        if (filled($parent->image)) {
+            $parent->image = FileManager::publicThumbnailUrl($parent->image);
         }
 
         return response()->json(['status' => 'success', 'data' => $parent]);
@@ -860,6 +879,10 @@ Route::prefix('v1')->group(function () {
         $maskings = $maskingsQuery->latest()->paginate($limit);
         $maskingItems = collect($maskings->items())->map(function (DesignMasking $masking) {
             $item = $masking->toArray();
+            if (filled($masking->design)) {
+                $item['design'] = FileManager::publicThumbnailUrl($masking->design);
+                $item['design_url'] = $item['design'];
+            }
             // Keep the database field name and expose the app-facing alias as well.
             $item['copyrightwatermark'] = $masking->copyright_position;
             $item['design_type'] = 'design_masking';
@@ -975,7 +998,13 @@ Route::prefix('v1')->group(function () {
             'status' => 'success',
             'count' => $days->total(),
             'total' => $days->total(),
-            'data' => $days->items(),
+            'data' => collect($days->items())->map(function (SpecialDay $day): SpecialDay {
+                if (filled($day->image)) {
+                    $day->image = FileManager::publicThumbnailUrl($day->image);
+                }
+
+                return $day;
+            }),
         ]);
     });
 
@@ -1069,14 +1098,20 @@ Route::prefix('v1')->group(function () {
             return $query->latest()->get();
         };
 
-        $todayDesigns = $buildDateQuery($today)->map(function ($item) {
+        $todayDesigns = $buildDateQuery($today)->map(function (Design $item) {
             $item->day_type = 'today';
+            if (filled($item->design)) {
+                $item->design = FileManager::publicThumbnailUrl($item->design);
+            }
 
             return $item;
         });
 
-        $tomorrowDesigns = $buildDateQuery($tomorrow)->map(function ($item) {
+        $tomorrowDesigns = $buildDateQuery($tomorrow)->map(function (Design $item) {
             $item->day_type = 'tomorrow';
+            if (filled($item->design)) {
+                $item->design = FileManager::publicThumbnailUrl($item->design);
+            }
 
             return $item;
         });
@@ -1208,6 +1243,10 @@ Route::prefix('v1')->group(function () {
                 }
             } else {
                 $item->special_day_name = '';
+            }
+
+            if (filled($item->design)) {
+                $item->design = FileManager::publicThumbnailUrl($item->design);
             }
 
             return $item;
@@ -1562,6 +1601,10 @@ Route::prefix('v1')->group(function () {
             'last_page' => $maskings->lastPage(),
             'data' => collect($maskings->items())->map(function (DesignMasking $masking) {
                 $item = $masking->toArray();
+                if (filled($masking->design)) {
+                    $item['design'] = FileManager::publicThumbnailUrl($masking->design);
+                    $item['design_url'] = $item['design'];
+                }
                 $item['design_type'] = 'design_masking';
 
                 return $item;
@@ -1665,7 +1708,12 @@ Route::prefix('v1')->group(function () {
             };
 
             $video->video_url = $publicStorageUrl($video->video);
-            $video->thumbnail_url = $publicStorageUrl($video->thumbnail);
+            $video->thumbnail_url = $video->thumbnail
+                ? FileManager::publicThumbnailUrl($video->thumbnail)
+                : null;
+            if ($video->thumbnail) {
+                $video->thumbnail = $video->thumbnail_url;
+            }
             $video->special_day_name = $video->specialDay?->name
                 ?? $video->specialDay?->eng_name
                 ?? '';
@@ -1707,7 +1755,7 @@ Route::prefix('v1')->group(function () {
             $img = $item->image ?? $item->photo;
             if ($img && ! str_starts_with($img, 'http')) {
                 $clean = ltrim($img, '/');
-                $item->image = FileManager::publicMediaUrl($clean);
+                $item->image = FileManager::publicThumbnailUrl($clean);
             }
 
             return $item;
@@ -1729,7 +1777,7 @@ Route::prefix('v1')->group(function () {
             $img = $item->image;
             if ($img && ! str_starts_with($img, 'http')) {
                 $clean = ltrim($img, '/');
-                $item->image = FileManager::publicMediaUrl($clean);
+                $item->image = FileManager::publicThumbnailUrl($clean);
             }
 
             return $item;
@@ -1756,6 +1804,12 @@ Route::prefix('v1')->group(function () {
                 ->get();
         }
 
+        $notifications->each(function ($notification): void {
+            if (filled($notification->image ?? null) && ! str_starts_with($notification->image, 'http')) {
+                $notification->image = FileManager::publicThumbnailUrl($notification->image);
+            }
+        });
+
         return response()->json([
             'status' => 'success',
             'count' => $notifications->count(),
@@ -1765,6 +1819,11 @@ Route::prefix('v1')->group(function () {
 
     Route::get('/notifications/static', function () {
         $notifications = StaticNotification::where('status', 1)->latest()->get();
+        $notifications->each(function (StaticNotification $notification): void {
+            if (filled($notification->image)) {
+                $notification->image = FileManager::publicThumbnailUrl($notification->image);
+            }
+        });
 
         return response()->json([
             'status' => 'success',
@@ -1785,6 +1844,13 @@ Route::prefix('v1')->group(function () {
             $query->where('status', $request->input('status'));
         }
         $templates = $query->latest()->get();
+        $templates->each(function (UserPremiumTemplate $template): void {
+            foreach (['middle_image', 'top_image', 'bottom_image'] as $imageField) {
+                if (filled($template->{$imageField})) {
+                    $template->{$imageField} = FileManager::publicThumbnailUrl($template->{$imageField});
+                }
+            }
+        });
 
         return response()->json([
             'status' => 'success',
@@ -1825,7 +1891,7 @@ Route::prefix('v1')->group(function () {
         }
 
         $sliders = $query->latest('id')->get()->map(function (Slider $slider): Slider {
-            $slider->image = FileManager::publicMediaUrl($slider->image);
+            $slider->image = FileManager::publicThumbnailUrl($slider->image);
 
             return $slider;
         });
@@ -1843,7 +1909,7 @@ Route::prefix('v1')->group(function () {
             return response()->json(['status' => 'error', 'message' => 'Slider not found'], 404);
         }
 
-        $slider->image = FileManager::publicMediaUrl($slider->image);
+        $slider->image = FileManager::publicThumbnailUrl($slider->image);
 
         return response()->json(['status' => 'success', 'data' => $slider]);
     });
@@ -1880,7 +1946,7 @@ Route::prefix('v1')->group(function () {
         }
 
         $ads = $query->latest('id')->get()->map(function (Ads $ad): Ads {
-            $ad->image = FileManager::publicMediaUrl($ad->image);
+            $ad->image = FileManager::publicThumbnailUrl($ad->image);
 
             return $ad;
         });

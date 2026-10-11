@@ -20,7 +20,7 @@ class DesignsTable
             ->columns([
                 ImageColumn::make('design')
                     ->label('Design Image')
-                    ->state(fn ($record) => filled($record->design) ? FileManager::mediaUrl($record->design) : null)
+                    ->state(fn ($record) => filled($record->design) ? FileManager::getThumbnailUrl($record->design) : null)
                     ->square(),
                 TextColumn::make('price')
                     ->label('Price')

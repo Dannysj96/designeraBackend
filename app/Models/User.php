@@ -117,7 +117,7 @@ class User extends Authenticatable implements FilamentUser
             return null;
         }
 
-        return FileManager::publicMediaUrl($pic);
+        return FileManager::publicThumbnailUrl($pic);
     }
 
     /**

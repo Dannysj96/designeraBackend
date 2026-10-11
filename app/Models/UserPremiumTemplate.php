@@ -63,7 +63,7 @@ class UserPremiumTemplate extends Model
             return null;
         }
 
-        return FileManager::publicMediaUrl($path);
+        return FileManager::publicThumbnailUrl($path);
     }
 
     public function user(): BelongsTo
