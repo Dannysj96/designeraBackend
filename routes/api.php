@@ -2379,7 +2379,7 @@ Route::prefix('v1')->group(function () {
         }
 
         $sliders = $query->latest('id')->get()->map(function (Slider $slider): Slider {
-            $slider->image = FileManager::publicThumbnailUrl($slider->image);
+            $slider->image = FileManager::publicOriginalUrl($slider->image);
 
             return $slider;
         });
@@ -2397,7 +2397,7 @@ Route::prefix('v1')->group(function () {
             return response()->json(['status' => 'error', 'message' => 'Slider not found'], 404);
         }
 
-        $slider->image = FileManager::publicThumbnailUrl($slider->image);
+        $slider->image = FileManager::publicOriginalUrl($slider->image);
 
         return response()->json(['status' => 'success', 'data' => $slider]);
     });
@@ -2434,7 +2434,7 @@ Route::prefix('v1')->group(function () {
         }
 
         $ads = $query->latest('id')->get()->map(function (Ads $ad): Ads {
-            $ad->image = FileManager::publicThumbnailUrl($ad->image);
+            $ad->image = FileManager::publicOriginalUrl($ad->image);
 
             return $ad;
         });

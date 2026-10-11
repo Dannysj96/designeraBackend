@@ -263,6 +263,45 @@ class FileManager
     }
 
     /**
+     * Build a public API URL for an original file without selecting its thumbnail.
+     */
+    public static function publicOriginalUrl(string $path): string
+    {
+        if (str_starts_with($path, 'data:')) {
+            return $path;
+        }
+
+        $pathValue = $path;
+        if (filter_var($path, FILTER_VALIDATE_URL) !== false) {
+            $urlPath = parse_url($path, PHP_URL_PATH) ?: '';
+            if (str_ends_with($urlPath, '/api/v1/media')) {
+                parse_str(parse_url($path, PHP_URL_QUERY) ?: '', $query);
+                $pathValue = is_string($query['path'] ?? null) ? $query['path'] : '';
+            } elseif (str_contains($urlPath, '/storage/')) {
+                $pathValue = substr($urlPath, strpos($urlPath, '/storage/') + strlen('/storage/'));
+            } elseif (str_contains($urlPath, '/_thumbnails/')) {
+                $pathValue = substr($urlPath, strpos($urlPath, '/_thumbnails/') + strlen('/_thumbnails/'));
+            } else {
+                return $path;
+            }
+        }
+
+        $pathValue = ltrim(str_replace('\\', '/', $pathValue), '/');
+        if (str_starts_with($pathValue, 'storage/')) {
+            $pathValue = substr($pathValue, strlen('storage/'));
+        }
+        if (str_starts_with($pathValue, '_thumbnails/')) {
+            $pathValue = substr($pathValue, strlen('_thumbnails/'));
+        }
+
+        if ($pathValue === '' || ! Storage::disk('public')->exists($pathValue)) {
+            return '';
+        }
+
+        return url('/api/v1/media').'?path='.rawurlencode($pathValue);
+    }
+
+    /**
      * Create a JPEG preview frame for a video using the system FFmpeg binary.
      */
     public static function createVideoThumbnail(string $filePath): bool
