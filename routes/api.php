@@ -65,9 +65,15 @@ Route::prefix('v1')->group(function () {
 
         $disk = Storage::disk('public');
         if (! $disk->exists($path)) {
-            $thumbnailPath = FileManager::getThumbnailPath($path);
-            abort_unless($disk->exists($thumbnailPath), 404);
-            $path = $thumbnailPath;
+            if (str_starts_with($path, '_thumbnails/')) {
+                $originalPath = substr($path, strlen('_thumbnails/'));
+                abort_unless($disk->exists($originalPath), 404);
+                $path = $originalPath;
+            } else {
+                $thumbnailPath = FileManager::getThumbnailPath($path);
+                abort_unless($disk->exists($thumbnailPath), 404);
+                $path = $thumbnailPath;
+            }
         }
 
         return response()->file($disk->path($path), [
@@ -91,6 +97,11 @@ Route::prefix('v1')->group(function () {
 
     Route::get('/settings', function () {
         $settings = Setting::currentArray();
+        foreach (['logo', 'watermark', 'splash_screen'] as $imageKey) {
+            if (filled($settings[$imageKey] ?? null)) {
+                $settings[$imageKey] = FileManager::publicThumbnailUrl($settings[$imageKey]);
+            }
+        }
 
         return response()->json([
             'status' => 'success',
@@ -1015,7 +1026,41 @@ Route::prefix('v1')->group(function () {
     // ==========================================
     // 8. Parties API
     // ==========================================
-    Route::get('/parties', function (Request $request) {
+    $formatPartyImages = static function (Party $party): Party {
+        $imageFields = ['image', 'party_image', 'symbol', 'top_image', 'bottom_image', 'custom_image'];
+        $formatImageValue = null;
+        $formatImageValue = static function (mixed $value) use (&$formatImageValue): mixed {
+            if (is_array($value)) {
+                foreach ($value as $key => $nestedValue) {
+                    $value[$key] = $formatImageValue($nestedValue);
+                }
+
+                return $value;
+            }
+
+            if (is_string($value) && filled($value)) {
+                $imagePath = parse_url($value, PHP_URL_PATH) ?: $value;
+                $extension = strtolower(pathinfo($imagePath, PATHINFO_EXTENSION));
+                if (! in_array($extension, ['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'svg'], true)) {
+                    return $value;
+                }
+
+                return FileManager::publicThumbnailUrl($value);
+            }
+
+            return $value;
+        };
+
+        foreach ($imageFields as $imageField) {
+            if (filled($party->{$imageField})) {
+                $party->{$imageField} = $formatImageValue($party->{$imageField});
+            }
+        }
+
+        return $party;
+    };
+
+    Route::get('/parties', function (Request $request) use ($formatPartyImages) {
         $query = Party::query();
         if ($request->filled('state')) {
             $query->where('state', $request->input('state'));
@@ -1023,7 +1068,7 @@ Route::prefix('v1')->group(function () {
         if ($request->filled('status')) {
             $query->where('status', $request->input('status'));
         }
-        $parties = $query->get();
+        $parties = $query->get()->map($formatPartyImages);
 
         return response()->json([
             'status' => 'success',
@@ -1032,13 +1077,13 @@ Route::prefix('v1')->group(function () {
         ]);
     });
 
-    Route::get('/parties/{id}', function ($id) {
+    Route::get('/parties/{id}', function ($id) use ($formatPartyImages) {
         $party = Party::find($id);
         if (! $party) {
             return response()->json(['status' => 'error', 'message' => 'Party not found'], 404);
         }
 
-        return response()->json(['status' => 'success', 'data' => $party]);
+        return response()->json(['status' => 'success', 'data' => $formatPartyImages($party)]);
     });
 
     // ==========================================
