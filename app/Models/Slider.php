@@ -2,9 +2,10 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
+use App\Helpers\FileManager;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 
 #[Fillable([
     'image',
@@ -34,9 +35,7 @@ class Slider extends Model
             return null;
         }
 
-        return str_starts_with($this->image, 'http')
-            ? $this->image
-            : asset('storage/' . $this->image);
+        return FileManager::publicMediaUrl($this->image);
     }
 
     protected static function booted(): void

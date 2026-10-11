@@ -2,10 +2,11 @@
 
 namespace App\Models;
 
+use App\Helpers\FileManager;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 
 class Setting extends Model
 {
@@ -16,19 +17,19 @@ class Setting extends Model
     protected $fillable = ['group', 'key', 'value', 'is_json'];
 
     protected static array $defaults = [
-        'site_title'             => 'Admin Panel',
-        'site_subtitle'          => 'Designera',
-        'email'                  => 'admin@admin.com',
-        'logo'                   => null,
-        'phone'                  => null,
-        'whatsapp_number'        => '919158592601',
-        'address'                => null,
-        'watermark'              => null,
-        'copyright'              => null,
-        'fcm_api_key'            => null,
-        'sms_api_key'            => null,
-        'footer_copyright_text'  => null,
-        'splash_screen'          => null,
+        'site_title' => 'Admin Panel',
+        'site_subtitle' => 'Designera',
+        'email' => 'admin@admin.com',
+        'logo' => null,
+        'phone' => null,
+        'whatsapp_number' => '919158592601',
+        'address' => null,
+        'watermark' => null,
+        'copyright' => null,
+        'fcm_api_key' => null,
+        'sms_api_key' => null,
+        'footer_copyright_text' => null,
+        'splash_screen' => null,
     ];
 
     const CACHE_KEY = 'app_settings';
@@ -97,6 +98,6 @@ class Setting extends Model
             return null;
         }
 
-        return str_starts_with($value, 'http') ? $value : asset('storage/' . $value);
+        return FileManager::publicMediaUrl($value);
     }
 }

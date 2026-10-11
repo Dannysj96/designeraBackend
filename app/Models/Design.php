@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Helpers\FileManager;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -104,9 +105,7 @@ class Design extends Model
             return null;
         }
 
-        return str_starts_with($this->design, 'http')
-            ? $this->design
-            : asset('storage/'.$this->design);
+        return FileManager::publicMediaUrl($this->design);
     }
 
     public function parentCategory(): BelongsTo

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Helpers\FileManager;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -28,9 +29,7 @@ class ParentCategory extends Model
             return null;
         }
 
-        return str_starts_with($this->image, 'http')
-            ? $this->image
-            : asset('storage/'.$this->image);
+        return FileManager::publicMediaUrl($this->image);
     }
 
     public function getTitleAttribute()

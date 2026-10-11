@@ -1,5 +1,6 @@
 <?php
 
+use App\Helpers\FileManager;
 use App\Models\Ads;
 use App\Models\Category;
 use App\Models\Coupon;
@@ -30,6 +31,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\PersonalAccessToken;
 
@@ -44,6 +46,32 @@ use Laravel\Sanctum\PersonalAccessToken;
 */
 
 Route::prefix('v1')->group(function () {
+
+    Route::get('/media', function (Request $request) {
+        $validated = $request->validate([
+            'path' => ['required', 'string', 'max:1024'],
+        ]);
+
+        $path = str_replace('\\', '/', $validated['path']);
+        $segments = explode('/', $path);
+        $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+
+        abort_if(
+            str_starts_with($path, '/') ||
+                collect($segments)->contains(fn (string $segment): bool => in_array($segment, ['', '.', '..'], true)) ||
+                ! in_array($extension, ['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'mp4', 'webm', 'mov', 'avi'], true),
+            404,
+        );
+
+        $disk = Storage::disk('public');
+        abort_unless($disk->exists($path), 404);
+
+        return response()->file($disk->path($path), [
+            'Cache-Control' => 'public, max-age=86400',
+            'Content-Disposition' => 'inline',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
+    })->name('api.v1.media');
 
     // ==========================================
     // 1. System Health & Settings
@@ -1633,7 +1661,7 @@ Route::prefix('v1')->group(function () {
                     $relativePath = substr($relativePath, strlen('storage/'));
                 }
 
-                return asset('storage/'.str_replace(' ', '%20', $relativePath));
+                return FileManager::publicMediaUrl($relativePath);
             };
 
             $video->video_url = $publicStorageUrl($video->video);
@@ -1679,7 +1707,7 @@ Route::prefix('v1')->group(function () {
             $img = $item->image ?? $item->photo;
             if ($img && ! str_starts_with($img, 'http')) {
                 $clean = ltrim($img, '/');
-                $item->image = asset('storage/'.str_replace(' ', '%20', $clean));
+                $item->image = FileManager::publicMediaUrl($clean);
             }
 
             return $item;
@@ -1701,7 +1729,7 @@ Route::prefix('v1')->group(function () {
             $img = $item->image;
             if ($img && ! str_starts_with($img, 'http')) {
                 $clean = ltrim($img, '/');
-                $item->image = asset('storage/'.str_replace(' ', '%20', $clean));
+                $item->image = FileManager::publicMediaUrl($clean);
             }
 
             return $item;
@@ -1796,7 +1824,11 @@ Route::prefix('v1')->group(function () {
             $query->where('redirect_to', $request->input('redirect_to'));
         }
 
-        $sliders = $query->latest('id')->get();
+        $sliders = $query->latest('id')->get()->map(function (Slider $slider): Slider {
+            $slider->image = FileManager::publicMediaUrl($slider->image);
+
+            return $slider;
+        });
 
         return response()->json([
             'status' => 'success',
@@ -1810,6 +1842,8 @@ Route::prefix('v1')->group(function () {
         if (! $slider) {
             return response()->json(['status' => 'error', 'message' => 'Slider not found'], 404);
         }
+
+        $slider->image = FileManager::publicMediaUrl($slider->image);
 
         return response()->json(['status' => 'success', 'data' => $slider]);
     });
@@ -1845,7 +1879,11 @@ Route::prefix('v1')->group(function () {
             $query->where('redirect_to', $request->input('redirect_to'));
         }
 
-        $ads = $query->latest('id')->get();
+        $ads = $query->latest('id')->get()->map(function (Ads $ad): Ads {
+            $ad->image = FileManager::publicMediaUrl($ad->image);
+
+            return $ad;
+        });
 
         return response()->json([
             'status' => 'success',
