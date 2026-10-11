@@ -4,17 +4,17 @@ namespace App\Filament\Pages;
 
 use App\Helpers\FileManager;
 use BackedEnum;
-use UnitEnum;
 use Filament\Pages\Page;
 use Filament\Support\Enums\Width;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\Facades\Storage;
+use UnitEnum;
 
 class MediaLibrary extends Page
 {
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedPhoto;
 
-    protected static UnitEnum|string|null $navigationGroup = 'Designs';
+    protected static UnitEnum|string|null $navigationGroup = null;
 
     protected static ?string $navigationLabel = 'Media Library';
 
@@ -22,9 +22,9 @@ class MediaLibrary extends Page
 
     protected static ?string $slug = 'media-library';
 
-    protected static ?int $navigationSort = 9;
+    protected static ?int $navigationSort = 3;
 
-    protected static string $view = 'filament.pages.media-library';
+    protected string $view = 'filament.pages.media-library';
 
     public function getMaxContentWidth(): Width|string|null
     {

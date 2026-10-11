@@ -86,7 +86,7 @@
                 <p style="margin:0;font-size:11px;color:#64748b;">Browse, select or upload media files</p>
             </div>
         </div>
-        <button @click="closeModal()" type="button" class="fm-btn fm-btn-outline" style="width:32px;height:32px;padding:0;border-radius:8px;" title="Close File Manager">
+        <button @click="closeManager()" type="button" class="fm-btn fm-btn-outline" style="width:32px;height:32px;padding:0;border-radius:8px;" title="Close File Manager">
             <svg style="width:16px;height:16px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
             </svg>
@@ -261,7 +261,7 @@
     </div>
 
     {{-- ===== FILE & FOLDER GRID AREA ===== --}}
-    <div style="padding:20px;flex:1;overflow-y:auto;background:#ffffff;min-height:350px;">
+    <div class="fm-grid-area" style="padding:20px;flex:1;overflow-y:auto;background:#ffffff;min-height:350px;">
 
         {{-- Folders Section --}}
         <div x-show="filteredFolders.length > 0" style="margin-bottom:24px;">
@@ -415,7 +415,7 @@
 
         {{-- Action Buttons --}}
         <div style="display:flex;align-items:center;gap:10px;">
-            <button @click="closeModal()" type="button" class="fm-btn fm-btn-outline" style="padding:9px 18px;">
+            <button @click="closeManager()" type="button" class="fm-btn fm-btn-outline" style="padding:9px 18px;">
                 Cancel
             </button>
 
@@ -652,6 +652,18 @@
                     const closeBtn = document.querySelector('.fi-modal:has(.fm-wrap) .fi-modal-close-btn, .fi-modal:has(.fm-wrap) button[aria-label="Close"]');
                     if (closeBtn) closeBtn.click();
                 }
+            },
+
+            closeManager() {
+                const fmWrap = document.querySelector('.fm-wrap');
+                const fmModal = fmWrap ? fmWrap.closest('.fi-modal') : null;
+
+                if (!fmModal) {
+                    window.location.assign(this.baseUrl.replace(/\/file-manager$/, ''));
+                    return;
+                }
+
+                this.closeModal();
             },
 
             async confirmAndApplySelection() {
