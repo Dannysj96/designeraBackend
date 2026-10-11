@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Helpers\FileManager;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -57,6 +58,19 @@ class Video extends Model
     public function specialDay(): BelongsTo
     {
         return $this->belongsTo(SpecialDay::class, 'special_day');
+    }
+
+    protected static function booted(): void
+    {
+        static::saved(function (Video $video): void {
+            if (filled($video->video)) {
+                FileManager::createVideoThumbnail($video->video);
+            }
+
+            if (filled($video->thumbnail)) {
+                FileManager::createThumbnail($video->thumbnail);
+            }
+        });
     }
 
     public function parentCategory(): BelongsTo
