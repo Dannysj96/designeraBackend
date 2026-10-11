@@ -20,7 +20,9 @@ class VideosTable
             ->columns([
                 ImageColumn::make('thumbnail')
                     ->label('Thumbnail')
-                    ->state(fn ($record) => filled($record->thumbnail) ? FileManager::getThumbnailUrl($record->thumbnail) : null)
+                    ->state(fn ($record) => filled($record->thumbnail)
+                        ? FileManager::getThumbnailUrl($record->thumbnail)
+                        : (filled($record->video) ? FileManager::getThumbnailUrl($record->video) : null))
                     ->square(),
                 TextColumn::make('price')
                     ->label('Price')

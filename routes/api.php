@@ -64,7 +64,11 @@ Route::prefix('v1')->group(function () {
         );
 
         $disk = Storage::disk('public');
-        abort_unless($disk->exists($path), 404);
+        if (! $disk->exists($path)) {
+            $thumbnailPath = FileManager::getThumbnailPath($path);
+            abort_unless($disk->exists($thumbnailPath), 404);
+            $path = $thumbnailPath;
+        }
 
         return response()->file($disk->path($path), [
             'Cache-Control' => 'public, max-age=86400',
@@ -1710,10 +1714,8 @@ Route::prefix('v1')->group(function () {
             $video->video_url = $publicStorageUrl($video->video);
             $video->thumbnail_url = $video->thumbnail
                 ? FileManager::publicThumbnailUrl($video->thumbnail)
-                : null;
-            if ($video->thumbnail) {
-                $video->thumbnail = $video->thumbnail_url;
-            }
+                : FileManager::publicThumbnailUrl($video->video);
+            $video->thumbnail = $video->thumbnail_url;
             $video->special_day_name = $video->specialDay?->name
                 ?? $video->specialDay?->eng_name
                 ?? '';

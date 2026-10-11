@@ -3,6 +3,7 @@
 namespace App\Helpers;
 
 use Illuminate\Support\Facades\Storage;
+use Symfony\Component\Process\Process;
 
 class FileManager
 {
@@ -123,7 +124,20 @@ class FileManager
      */
     public static function getThumbnailPath(string $file): string
     {
-        return '_thumbnails/'.$file;
+        $file = ltrim(str_replace('\\', '/', $file), '/');
+
+        if (str_starts_with($file, '_thumbnails/')) {
+            return $file;
+        }
+
+        $extension = strtolower(pathinfo($file, PATHINFO_EXTENSION));
+        $thumbnailPath = '_thumbnails/'.$file;
+
+        if (in_array($extension, ['mp4', 'webm', 'mov', 'avi'], true)) {
+            return substr($thumbnailPath, 0, -strlen($extension)).'jpg';
+        }
+
+        return $thumbnailPath;
     }
 
     /**
@@ -141,7 +155,18 @@ class FileManager
         }
 
         $extension = strtolower(pathinfo($file, PATHINFO_EXTENSION));
-        if (! in_array($extension, ['jpg', 'jpeg', 'png', 'webp', 'gif'])) {
+        if (in_array($extension, ['mp4', 'webm', 'mov', 'avi'], true)) {
+            $thumbRel = self::getThumbnailPath($file);
+            $disk = Storage::disk('public');
+
+            if (! $disk->exists($thumbRel)) {
+                self::createVideoThumbnail($file);
+            }
+
+            return $disk->exists($thumbRel) ? self::mediaUrl($thumbRel) : '';
+        }
+
+        if (! in_array($extension, ['jpg', 'jpeg', 'png', 'webp', 'gif'], true)) {
             return self::mediaUrl($file);
         }
 
@@ -174,10 +199,18 @@ class FileManager
         }
 
         $disk = Storage::disk('public');
+        if (str_starts_with($path, '_thumbnails/')) {
+            return self::publicMediaUrl($path);
+        }
+
         $thumbnailPath = self::getThumbnailPath($path);
 
         if (! $disk->exists($thumbnailPath)) {
             self::createThumbnail($path);
+        }
+
+        if (in_array(strtolower(pathinfo($path, PATHINFO_EXTENSION)), ['mp4', 'webm', 'mov', 'avi'], true) && ! $disk->exists($thumbnailPath)) {
+            return '';
         }
 
         return self::publicMediaUrl($disk->exists($thumbnailPath) ? $thumbnailPath : $path);
@@ -218,22 +251,82 @@ class FileManager
     }
 
     /**
+     * Create a JPEG preview frame for a video using the system FFmpeg binary.
+     */
+    public static function createVideoThumbnail(string $filePath): bool
+    {
+        $filePath = ltrim(str_replace('\\', '/', $filePath), '/');
+        if (str_starts_with($filePath, 'storage/')) {
+            $filePath = substr($filePath, strlen('storage/'));
+        }
+
+        $disk = Storage::disk('public');
+        if (! $disk->exists($filePath)) {
+            return false;
+        }
+
+        $thumbnailPath = self::getThumbnailPath($filePath);
+        if ($disk->exists($thumbnailPath)) {
+            return true;
+        }
+
+        $fullThumbnailPath = $disk->path($thumbnailPath);
+        $thumbnailDirectory = dirname($fullThumbnailPath);
+        if (! is_dir($thumbnailDirectory) && ! @mkdir($thumbnailDirectory, 0775, true) && ! is_dir($thumbnailDirectory)) {
+            return false;
+        }
+
+        try {
+            $process = new Process([
+                'ffmpeg',
+                '-hide_banner',
+                '-loglevel', 'error',
+                '-ss', '00:00:01',
+                '-i', $disk->path($filePath),
+                '-frames:v', '1',
+                '-vf', 'scale=320:320:force_original_aspect_ratio=decrease',
+                '-q:v', '4',
+                '-y', $fullThumbnailPath,
+            ]);
+            $process->setTimeout(60);
+            $process->run();
+
+            return $process->isSuccessful() && $disk->exists($thumbnailPath);
+        } catch (\Throwable) {
+            return false;
+        }
+    }
+
+    /**
      * Generate compressed thumbnail image
      */
     public static function createThumbnail(string $filePath, int $maxWidth = 320, int $maxHeight = 320, int $quality = 80): bool
     {
+        $filePath = ltrim(str_replace('\\', '/', $filePath), '/');
+        if (str_starts_with($filePath, 'storage/')) {
+            $filePath = substr($filePath, strlen('storage/'));
+        }
+
         $disk = Storage::disk('public');
         if (! $disk->exists($filePath)) {
             return false;
         }
 
         $extension = strtolower(pathinfo($filePath, PATHINFO_EXTENSION));
+        if (in_array($extension, ['mp4', 'webm', 'mov', 'avi'], true)) {
+            return self::createVideoThumbnail($filePath);
+        }
+
         if (! in_array($extension, ['jpg', 'jpeg', 'png', 'webp', 'gif'])) {
             return false;
         }
 
         $fullSourcePath = $disk->path($filePath);
         $thumbRelativePath = self::getThumbnailPath($filePath);
+        if ($disk->exists($thumbRelativePath)) {
+            return true;
+        }
+
         $fullThumbPath = $disk->path($thumbRelativePath);
 
         $thumbDir = dirname($fullThumbPath);
