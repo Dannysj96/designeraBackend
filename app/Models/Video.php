@@ -45,6 +45,8 @@ class Video extends Model
             'price' => 'decimal:2',
             'discount' => 'decimal:2',
             'status' => 'integer',
+            'views' => 'integer',
+            'downloads' => 'integer',
             'merging' => 'array',
             'city' => 'array',
             'party' => 'array',
