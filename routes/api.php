@@ -33,6 +33,7 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Laravel\Sanctum\PersonalAccessToken;
 
 /*
@@ -370,6 +371,13 @@ Route::prefix('v1')->group(function () {
 
             $validated = $request->validate([
                 'name' => 'sometimes|string|max:255',
+                'email' => [
+                    'sometimes',
+                    'required',
+                    'email',
+                    'max:255',
+                    Rule::unique('users', 'email')->ignore($user->getKey()),
+                ],
                 'mobile' => 'sometimes|nullable|string|max:20',
                 'phone' => 'sometimes|nullable|string|max:20',
                 'state' => 'sometimes|nullable|string',
@@ -382,10 +390,21 @@ Route::prefix('v1')->group(function () {
                 'twitter' => 'sometimes|nullable|string',
                 'instagram' => 'sometimes|nullable|string',
                 'language' => 'sometimes|nullable|string',
+                'profile_photo' => 'sometimes|nullable|image|mimes:jpg,jpeg,png,webp|max:5120',
+                'business_logo' => 'sometimes|nullable|image|mimes:jpg,jpeg,png,webp|max:5120',
             ]);
 
             if (isset($validated['mobile'])) {
                 $validated['phone'] = $validated['mobile'];
+            }
+
+            if ($request->hasFile('profile_photo')) {
+                $validated['profile_pic'] = $request->file('profile_photo')->store('users/profile', 'public');
+                unset($validated['profile_photo']);
+            }
+
+            if ($request->hasFile('business_logo')) {
+                $validated['business_logo'] = $request->file('business_logo')->store('users/business-logos', 'public');
             }
 
             $user->update($validated);
