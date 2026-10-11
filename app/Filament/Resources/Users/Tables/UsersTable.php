@@ -29,7 +29,7 @@ class UsersTable
                 ImageColumn::make('profile_pic')
                     ->label('Photo')
                     ->circular()
-                    ->state(fn ($record) => filled($record->profile_pic) ? FileManager::mediaUrl($record->profile_pic) : null)
+                    ->state(fn ($record) => filled($record->profile_pic) ? FileManager::getThumbnailUrl($record->profile_pic) : null)
                     ->disk('public')
                     ->defaultImageUrl(fn ($record) => $record->profile_photo_url),
 

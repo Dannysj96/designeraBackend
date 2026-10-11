@@ -70,7 +70,7 @@ class DesignForm
                                             ->components([
                                                 Checkbox::make('front_img')
                                                     ->label('Front Img')
-                                                    ->default(false),
+                                                    ->default(true),
 
                                                 Checkbox::make('back')
                                                     ->label('Back')

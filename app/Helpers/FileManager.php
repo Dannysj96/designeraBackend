@@ -131,9 +131,18 @@ class FileManager
      */
     public static function getThumbnailUrl(string $file): string
     {
+        if (filter_var($file, FILTER_VALIDATE_URL) !== false || str_starts_with($file, 'data:')) {
+            return $file;
+        }
+
+        $file = ltrim(str_replace('\\', '/', $file), '/');
+        if (str_starts_with($file, 'storage/')) {
+            $file = substr($file, strlen('storage/'));
+        }
+
         $extension = strtolower(pathinfo($file, PATHINFO_EXTENSION));
         if (! in_array($extension, ['jpg', 'jpeg', 'png', 'webp', 'gif'])) {
-            return asset('storage/'.$file);
+            return self::mediaUrl($file);
         }
 
         $thumbRel = self::getThumbnailPath($file);
@@ -148,6 +157,30 @@ class FileManager
         }
 
         return self::mediaUrl($file);
+    }
+
+    /**
+     * Build a public API URL for a list thumbnail, falling back to the original if no thumbnail is available.
+     */
+    public static function publicThumbnailUrl(string $path): string
+    {
+        if (filter_var($path, FILTER_VALIDATE_URL) !== false || str_starts_with($path, 'data:')) {
+            return $path;
+        }
+
+        $path = ltrim(str_replace('\\', '/', $path), '/');
+        if (str_starts_with($path, 'storage/')) {
+            $path = substr($path, strlen('storage/'));
+        }
+
+        $disk = Storage::disk('public');
+        $thumbnailPath = self::getThumbnailPath($path);
+
+        if (! $disk->exists($thumbnailPath)) {
+            self::createThumbnail($path);
+        }
+
+        return self::publicMediaUrl($disk->exists($thumbnailPath) ? $thumbnailPath : $path);
     }
 
     /**

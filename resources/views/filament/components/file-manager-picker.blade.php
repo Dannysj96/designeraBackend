@@ -38,7 +38,7 @@
                                 </svg>
                             </span>
                         @else
-                            <img src="{{ $file['url'] }}" alt="{{ $file['name'] }}" class="w-full h-full object-cover" />
+                            <img src="{{ $file['thumb_url'] ?? $file['url'] }}" alt="{{ $file['name'] }}" class="w-full h-full object-cover" />
                         @endif
 
                         <div class="absolute inset-0 bg-primary-500/20 opacity-0 peer-checked:opacity-100 transition flex items-center justify-center">

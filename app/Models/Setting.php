@@ -98,6 +98,6 @@ class Setting extends Model
             return null;
         }
 
-        return FileManager::publicMediaUrl($value);
+        return FileManager::publicThumbnailUrl($value);
     }
 }

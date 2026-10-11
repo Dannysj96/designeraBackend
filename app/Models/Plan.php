@@ -78,7 +78,7 @@ class Plan extends Model
     protected function imageUrl(): Attribute
     {
         return Attribute::get(fn (): ?string => $this->image
-            ? FileManager::publicMediaUrl($this->image)
+            ? FileManager::publicThumbnailUrl($this->image)
             : null);
     }
 }

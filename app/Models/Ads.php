@@ -35,7 +35,7 @@ class Ads extends Model
             return null;
         }
 
-        return FileManager::publicMediaUrl($this->image);
+        return FileManager::publicThumbnailUrl($this->image);
     }
 
     protected static function booted(): void
