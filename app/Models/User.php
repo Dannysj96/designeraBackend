@@ -3,6 +3,7 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Helpers\FileManager;
 use Carbon\Carbon;
 use Database\Factories\UserFactory;
 use Filament\Models\Contracts\FilamentUser;
@@ -116,9 +117,7 @@ class User extends Authenticatable implements FilamentUser
             return null;
         }
 
-        return str_starts_with($pic, 'http')
-            ? $pic
-            : asset('storage/'.$pic);
+        return FileManager::publicMediaUrl($pic);
     }
 
     /**

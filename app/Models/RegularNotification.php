@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Helpers\FileManager;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -42,8 +43,6 @@ class RegularNotification extends Model
             return null;
         }
 
-        return str_starts_with($path, 'http')
-            ? $path
-            : asset('storage/'.ltrim($path, '/'));
+        return FileManager::publicMediaUrl($path);
     }
 }

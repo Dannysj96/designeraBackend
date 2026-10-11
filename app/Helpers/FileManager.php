@@ -163,6 +163,28 @@ class FileManager
     }
 
     /**
+     * Build a public API URL for app media, preferring an original file and falling back to its thumbnail.
+     */
+    public static function publicMediaUrl(string $path): string
+    {
+        if (filter_var($path, FILTER_VALIDATE_URL) !== false || str_starts_with($path, 'data:')) {
+            return $path;
+        }
+
+        $path = ltrim(str_replace('\\', '/', $path), '/');
+        if (str_starts_with($path, 'storage/')) {
+            $path = substr($path, strlen('storage/'));
+        }
+
+        $disk = Storage::disk('public');
+        if (! $disk->exists($path) && $disk->exists(self::getThumbnailPath($path))) {
+            $path = self::getThumbnailPath($path);
+        }
+
+        return url('/api/v1/media').'?path='.rawurlencode($path);
+    }
+
+    /**
      * Generate compressed thumbnail image
      */
     public static function createThumbnail(string $filePath, int $maxWidth = 320, int $maxHeight = 320, int $quality = 80): bool

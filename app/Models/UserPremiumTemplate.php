@@ -2,9 +2,11 @@
 
 namespace App\Models;
 
+use App\Helpers\FileManager;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class UserPremiumTemplate extends Model
 {
@@ -57,15 +59,11 @@ class UserPremiumTemplate extends Model
 
     public static function formatImageUrl(?string $path): ?string
     {
-        if (! $path) return null;
-        if (str_starts_with($path, 'http://') || str_starts_with($path, 'https://')) {
-            return $path;
+        if (! $path) {
+            return null;
         }
-        $clean = ltrim($path, '/');
-        if (str_starts_with($clean, 'storage/')) {
-            return asset($clean);
-        }
-        return asset('storage/' . $clean);
+
+        return FileManager::publicMediaUrl($path);
     }
 
     public function user(): BelongsTo
@@ -73,12 +71,12 @@ class UserPremiumTemplate extends Model
         return $this->belongsTo(User::class);
     }
 
-    public function premiumTemplates(): \Illuminate\Database\Eloquent\Relations\HasMany
+    public function premiumTemplates(): HasMany
     {
         return $this->hasMany(UserPremiumTemplate::class);
     }
 
-    public function plan(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    public function plan(): BelongsTo
     {
         return $this->belongsTo(Plan::class);
     }

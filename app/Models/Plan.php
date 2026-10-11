@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Helpers\FileManager;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -77,9 +78,7 @@ class Plan extends Model
     protected function imageUrl(): Attribute
     {
         return Attribute::get(fn (): ?string => $this->image
-            ? (str_starts_with($this->image, 'http')
-                ? $this->image
-                : asset('storage/'.ltrim($this->image, '/')))
+            ? FileManager::publicMediaUrl($this->image)
             : null);
     }
 }
