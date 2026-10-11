@@ -136,6 +136,21 @@ Route::prefix('v1')->group(function () {
         ]);
     });
 
+    Route::get('/languages', function () {
+        $languages = collect(config('constants.languages', []))
+            ->map(fn (string $name, string $id): array => [
+                'id' => $id,
+                'name' => $name,
+            ])
+            ->values();
+
+        return response()->json([
+            'status' => 'success',
+            'count' => $languages->count(),
+            'data' => $languages,
+        ]);
+    });
+
     // Dashboard home listing used by the Flutter app.
     Route::post('/home_listing', function (Request $request) {
         $request->validate([
@@ -1063,7 +1078,20 @@ Route::prefix('v1')->group(function () {
     Route::get('/parties', function (Request $request) use ($formatPartyImages) {
         $query = Party::query();
         if ($request->filled('state')) {
-            $query->where('state', $request->input('state'));
+            $stateId = (string) $request->input('state');
+            $partyTable = (new Party)->getTable();
+
+            if (Schema::hasColumn($partyTable, 'state')) {
+                $query->where('state', $stateId);
+            } elseif (Schema::hasColumn($partyTable, 'states')) {
+                $query->where(function ($stateQuery) use ($stateId) {
+                    $stateQuery->whereJsonContains('states', $stateId);
+
+                    if (ctype_digit($stateId)) {
+                        $stateQuery->orWhereJsonContains('states', (int) $stateId);
+                    }
+                });
+            }
         }
         if ($request->filled('status')) {
             $query->where('status', $request->input('status'));
