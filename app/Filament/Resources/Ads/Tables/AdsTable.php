@@ -2,19 +2,19 @@
 
 namespace App\Filament\Resources\Ads\Tables;
 
+use App\Helpers\FileManager;
+use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
-use Filament\Tables\Table;
-
-use Filament\Actions\Action;
+use Filament\Forms\Components\DatePicker;
 use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Columns\TextColumn;
-use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Filters\Filter;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
-use Filament\Forms\Components\DatePicker;
-use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\HtmlString;
 
 class AdsTable
 {
@@ -24,13 +24,14 @@ class AdsTable
             ->columns([
                 ImageColumn::make('image')
                     ->label('Design')
+                    ->state(fn ($state) => filled($state) ? FileManager::mediaUrl($state) : null)
                     ->square()
                     ->size(60)
                     ->action(
                         Action::make('previewImage')
                             ->modalHeading('Design Preview')
-                            ->modalContent(fn($record) => new \Illuminate\Support\HtmlString(
-                                '<img src="' . e(Storage::url($record->image)) . '" class="max-h-80 w-auto mx-auto rounded-lg">'
+                            ->modalContent(fn ($record) => new HtmlString(
+                                '<img src="'.e(FileManager::mediaUrl($record->image)).'" class="max-h-80 w-auto mx-auto rounded-lg">'
                             ))
                             ->modalSubmitAction(false)
                             ->modalCancelActionLabel('Close')
@@ -40,12 +41,12 @@ class AdsTable
                 TextColumn::make('languages')
                     ->label('Language')
                     ->badge()
-                    ->formatStateUsing(fn($state) => config('constants.languages')[$state] ?? $state)
+                    ->formatStateUsing(fn ($state) => config('constants.languages')[$state] ?? $state)
                     ->separator(','),
 
                 TextColumn::make('redirect_to')
                     ->label('Redirect To')
-                    ->formatStateUsing(fn($state) => self::redirectOptions()[$state] ?? $state)
+                    ->formatStateUsing(fn ($state) => self::redirectOptions()[$state] ?? $state)
                     ->badge()
                     ->color('gray')
                     ->toggleable(),
@@ -53,7 +54,7 @@ class AdsTable
                 TextColumn::make('link')
                     ->label('Link')
                     ->limit(30)
-                    ->url(fn($record) => $record->link, true)
+                    ->url(fn ($record) => $record->link, true)
                     ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('start')
@@ -69,8 +70,8 @@ class AdsTable
                 TextColumn::make('status')
                     ->label('Status')
                     ->badge()
-                    ->formatStateUsing(fn($state) => $state ? 'Active' : 'Deactive')
-                    ->color(fn($state) => $state ? 'success' : 'danger'),
+                    ->formatStateUsing(fn ($state) => $state ? 'Active' : 'Deactive')
+                    ->color(fn ($state) => $state ? 'success' : 'danger'),
 
                 TextColumn::make('created_at')
                     ->label('Created')
@@ -102,8 +103,8 @@ class AdsTable
                     ])
                     ->query(function (Builder $query, array $data): Builder {
                         return $query
-                            ->when($data['from'], fn($q, $date) => $q->whereDate('start', '>=', $date))
-                            ->when($data['to'], fn($q, $date) => $q->whereDate('end', '<=', $date));
+                            ->when($data['from'], fn ($q, $date) => $q->whereDate('start', '>=', $date))
+                            ->when($data['to'], fn ($q, $date) => $q->whereDate('end', '<=', $date));
                     }),
             ])
             ->recordActions([

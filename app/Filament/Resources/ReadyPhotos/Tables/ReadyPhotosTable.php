@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\ReadyPhotos\Tables;
 
+use App\Helpers\FileManager;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
@@ -18,6 +19,7 @@ class ReadyPhotosTable
             ->columns([
                 ImageColumn::make('image')
                     ->label('Ready Photo')
+                    ->state(fn ($state) => filled($state) ? FileManager::mediaUrl($state) : null)
                     ->square(),
                 TextColumn::make('parentCategory.name')
                     ->label('Parent Category')

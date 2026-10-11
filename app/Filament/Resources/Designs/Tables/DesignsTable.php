@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Designs\Tables;
 
+use App\Helpers\FileManager;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
@@ -19,6 +20,7 @@ class DesignsTable
             ->columns([
                 ImageColumn::make('design')
                     ->label('Design Image')
+                    ->state(fn ($state) => filled($state) ? FileManager::mediaUrl($state) : null)
                     ->square(),
                 TextColumn::make('price')
                     ->label('Price')

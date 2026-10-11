@@ -155,6 +155,10 @@ class FileManager
      */
     public static function mediaUrl(string $path): string
     {
+        if (filter_var($path, FILTER_VALIDATE_URL) !== false || str_starts_with($path, 'data:')) {
+            return $path;
+        }
+
         return url('/admin/file-manager/media').'?path='.rawurlencode($path);
     }
 

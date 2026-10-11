@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\RegularNotifications\Tables;
 
+use App\Helpers\FileManager;
 use App\Models\RegularNotification;
 use App\Services\FirebaseCloudMessagingService;
 use Filament\Actions\Action;
@@ -25,6 +26,7 @@ class RegularNotificationsTable
             ->columns([
                 ImageColumn::make('image')
                     ->label('Image')
+                    ->state(fn ($state) => filled($state) ? FileManager::mediaUrl($state) : null)
                     ->square(),
                 TextColumn::make('title')
                     ->label('Title')
