@@ -469,10 +469,13 @@ Route::prefix('v1')->group(function () {
 
     Route::get('/settings', function () {
         $settings = Setting::currentArray();
-        foreach (['logo', 'watermark', 'splash_screen'] as $imageKey) {
+        foreach (['logo', 'splash_screen'] as $imageKey) {
             if (filled($settings[$imageKey] ?? null)) {
                 $settings[$imageKey] = FileManager::publicThumbnailUrl($settings[$imageKey]);
             }
+        }
+        if (filled($settings['watermark'] ?? null)) {
+            $settings['watermark'] = FileManager::publicOriginalUrl($settings['watermark']);
         }
 
         return response()->json([
@@ -1433,7 +1436,7 @@ Route::prefix('v1')->group(function () {
     // 8. Parties API
     // ==========================================
     $formatPartyImages = static function (Party $party): Party {
-        $imageFields = ['image', 'party_image', 'symbol', 'top_image', 'bottom_image', 'custom_image'];
+        $imageFields = ['image', 'party_image', 'symbol', 'custom_image'];
         $formatImageValue = null;
         $formatImageValue = static function (mixed $value) use (&$formatImageValue): mixed {
             if (is_array($value)) {
@@ -2337,13 +2340,6 @@ Route::prefix('v1')->group(function () {
             $query->where('status', $request->input('status'));
         }
         $templates = $query->latest()->get();
-        $templates->each(function (UserPremiumTemplate $template): void {
-            foreach (['middle_image', 'top_image', 'bottom_image'] as $imageField) {
-                if (filled($template->{$imageField})) {
-                    $template->{$imageField} = FileManager::publicThumbnailUrl($template->{$imageField});
-                }
-            }
-        });
 
         return response()->json([
             'status' => 'success',
