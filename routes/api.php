@@ -2291,6 +2291,31 @@ Route::prefix('v1')->group(function () {
         ]);
     });
 
+    Route::post('/get_ready_text', function (Request $request) {
+        $texts = ReadyText::where('status', 1)
+            ->orderBy('sort_order', 'asc')
+            ->get()
+            ->map(function (ReadyText $text): string {
+                $image = $text->image;
+
+                if (! $image) {
+                    return '';
+                }
+
+                return str_starts_with($image, 'http')
+                    ? $image
+                    : FileManager::publicThumbnailUrl(ltrim($image, '/'));
+            })
+            ->filter()
+            ->values();
+
+        return response()->json([
+            'status' => true,
+            'count' => $texts->count(),
+            'ready_text' => $texts,
+        ]);
+    });
+
     // ==========================================
     // 13. Notifications (Regular & Static)
     // ==========================================
