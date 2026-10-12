@@ -2269,6 +2269,31 @@ Route::prefix('v1')->group(function () {
         ]);
     });
 
+    Route::post('/get_ready_photos', function () {
+        $photos = ReadyPhoto::where('status', 1)
+            ->orderBy('sort_order', 'asc')
+            ->get()
+            ->map(function (ReadyPhoto $photo): string {
+                $image = $photo->image ?? $photo->photo;
+
+                if (! $image) {
+                    return '';
+                }
+
+                return str_starts_with($image, 'http')
+                    ? $image
+                    : FileManager::publicThumbnailUrl(ltrim($image, '/'));
+            })
+            ->filter()
+            ->values();
+
+        return response()->json([
+            'status' => true,
+            'count' => $photos->count(),
+            'ready_photo' => $photos,
+        ]);
+    });
+
     Route::get('/ready-texts', function (Request $request) {
         $query = ReadyText::where('status', 1);
         if ($request->filled('party')) {
