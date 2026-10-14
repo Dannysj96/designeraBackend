@@ -2,11 +2,9 @@
 
 namespace App\Providers;
 
-use Filament\Forms\Components\BaseFileUpload;
 use Filament\Forms\Components\FileUpload;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
-use Illuminate\Support\Str;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -33,52 +31,9 @@ class AppServiceProvider extends ServiceProvider
             }
         }
 
-        // Globally configure all Filament FileUpload components to use public storage disk and sanitize URLs properly
+        // Keep Filament uploads on public storage; Filament handles selected-file previews.
         FileUpload::configureUsing(function (FileUpload $fileUpload): void {
             $fileUpload->disk('public');
-            $fileUpload->getUploadedFileUsing(static function (BaseFileUpload $component, string $file, string | array | null $storedFileNames): ?array {
-                /** @var \Illuminate\Filesystem\FilesystemAdapter $storage */
-                $storage = $component->getDisk();
-                $shouldFetchFileInformation = $component->shouldFetchFileInformation();
-
-                $size = 0;
-                $type = null;
-
-                if ($shouldFetchFileInformation) {
-                    try {
-                        $size = $storage->size($file);
-                        $type = $storage->mimeType($file);
-                    } catch (\Throwable $exception) {
-                        // Ignore
-                    }
-                }
-
-                $url = null;
-
-                if ($component->getVisibility() === 'private') {
-                    try {
-                        $url = $storage->temporaryUrl(
-                            $file,
-                            now()->addMinutes(config('filament.temporary_file_url_expiry_minutes', 30))->endOfHour(),
-                        );
-                    } catch (\Throwable $exception) {
-                    }
-                }
-
-                $url ??= $storage->url($file);
-
-                // Encode spaces and special chars in path/filename so Str::sanitizeUrl accepts it
-                $encodedUrl = preg_replace_callback('/[^\:\/@?&=#%._~-]+/', function ($matches) {
-                    return rawurlencode($matches[0]);
-                }, $url);
-
-                return [
-                    'name' => ($component->isMultiple() ? ($storedFileNames[$file] ?? null) : $storedFileNames) ?? basename($file),
-                    'size' => $size,
-                    'type' => $type,
-                    'url' => Str::sanitizeUrl($encodedUrl),
-                ];
-            });
         });
     }
 }

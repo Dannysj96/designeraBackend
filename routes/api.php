@@ -431,7 +431,7 @@ Route::prefix('v1')->group(function () {
         abort_if(
             str_starts_with($path, '/') ||
                 collect($segments)->contains(fn (string $segment): bool => in_array($segment, ['', '.', '..'], true)) ||
-                ! in_array($extension, ['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'mp4', 'webm', 'mov', 'avi'], true),
+                ! in_array($extension, ['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'json', 'mp4', 'webm', 'mov', 'avi'], true),
             404,
         );
 
@@ -469,11 +469,23 @@ Route::prefix('v1')->group(function () {
 
     Route::get('/settings', function () {
         $settings = Setting::currentArray();
-        foreach (['logo', 'splash_screen'] as $imageKey) {
-            if (filled($settings[$imageKey] ?? null)) {
-                $settings[$imageKey] = FileManager::publicThumbnailUrl($settings[$imageKey]);
-            }
+        if (filled($settings['logo'] ?? null)) {
+            $settings['logo'] = FileManager::publicThumbnailUrl($settings['logo']);
         }
+        if (filled($settings['splash_screen'] ?? null)) {
+            $splashPath = $settings['splash_screen'];
+            $splashUrlPath = parse_url($splashPath, PHP_URL_PATH) ?: $splashPath;
+            $splashExtension = strtolower(pathinfo($splashUrlPath, PATHINFO_EXTENSION));
+            $settings['splash_screen_type'] = match ($splashExtension) {
+                'json' => 'lottie',
+                'mp4', 'mov', 'webm' => 'video',
+                default => 'image',
+            };
+            $settings['splash_screen'] = FileManager::publicOriginalUrl($splashPath);
+        } else {
+            $settings['splash_screen_type'] = null;
+        }
+        $settings['splash_duration'] = max(1, min(60, (int) ($settings['splash_duration'] ?? 2)));
         if (filled($settings['watermark'] ?? null)) {
             $settings['watermark'] = FileManager::publicOriginalUrl($settings['watermark']);
         }
