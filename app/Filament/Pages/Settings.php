@@ -6,8 +6,8 @@ use App\Helpers\FileManagerAction;
 use App\Models\Setting;
 use Filament\Actions\Action;
 use Filament\Forms\Components\FileUpload;
-use Filament\Forms\Components\TextInput;
-use Filament\Forms\Components\Textarea; // Added Textarea import
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput; // Added Textarea import
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
 use Filament\Notifications\Notification;
@@ -150,11 +150,31 @@ class Settings extends Page implements HasForms
                                     ->components([
                                         FileUpload::make('splash_screen')
                                             ->label('Splash Screen')
-                                            ->image()
                                             ->disk('public')
                                             ->directory('site-settings')
-                                            ->maxSize(2048)
-                                            ->helperText('Upload a splash screen image (PNG, JPG) - Max 2MB')
+                                            ->acceptedFileTypes([
+                                                'image/jpeg',
+                                                'image/png',
+                                                'image/webp',
+                                                'image/gif',
+                                                'video/mp4',
+                                                'video/quicktime',
+                                                'video/webm',
+                                                'application/json',
+                                            ])
+                                            ->maxSize(51200)
+                                            ->helperText('Upload an image, MP4/MOV/WebM video, or Lottie JSON animation. Maximum 50 MB.')
+                                            ->columnSpanFull(),
+
+                                        TextInput::make('splash_duration')
+                                            ->label('Splash Screen Duration (seconds)')
+                                            ->numeric()
+                                            ->integer()
+                                            ->minValue(1)
+                                            ->maxValue(60)
+                                            ->default(2)
+                                            ->required()
+                                            ->helperText('How long the app shows the splash screen (1–60 seconds).')
                                             ->columnSpanFull(),
                                     ]),
                             ]),

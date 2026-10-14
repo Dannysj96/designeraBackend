@@ -30,6 +30,7 @@ class Setting extends Model
         'sms_api_key' => null,
         'footer_copyright_text' => null,
         'splash_screen' => null,
+        'splash_duration' => 2,
     ];
 
     const CACHE_KEY = 'app_settings';
