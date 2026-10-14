@@ -70,13 +70,6 @@ class AppServiceProvider extends ServiceProvider
                     }
                 }
 
-                $storageUrl = $storage->url($path);
-                $storagePath = parse_url($storageUrl, PHP_URL_PATH);
-
-                if (! is_string($storagePath) || $storagePath === '') {
-                    return null;
-                }
-
                 $basePath = trim(request()->getBaseUrl(), '/');
                 if ($basePath === '' && ($route = request()->route())) {
                     $requestSegments = explode('/', trim(request()->getPathInfo(), '/'));
@@ -103,18 +96,11 @@ class AppServiceProvider extends ServiceProvider
                     }
                 }
 
-                $storagePath = '/'.ltrim($storagePath, '/');
-                $basePathPrefix = $basePath !== '' && ! str_starts_with($storagePath, '/'.$basePath.'/')
-                    ? $basePath.'/'
-                    : '';
-                $previewPath = '/'.trim($basePathPrefix.ltrim($storagePath, '/'), '/');
-                $encodedPath = implode('/', array_map(
-                    static fn (string $segment): string => rawurlencode(rawurldecode($segment)),
-                    explode('/', $previewPath),
-                ));
                 $storedFileName = $component->isMultiple() && is_array($storedFileNames)
                     ? ($storedFileNames[$file] ?? null)
                     : $storedFileNames;
+                $mediaPath = '/'.trim(($basePath === '' ? '' : $basePath.'/').'api/v1/media', '/');
+                $mediaUrl = request()->getSchemeAndHttpHost().$mediaPath.'?path='.rawurlencode($path);
 
                 return [
                     'name' => is_string($storedFileName) && $storedFileName !== ''
@@ -122,7 +108,7 @@ class AppServiceProvider extends ServiceProvider
                         : basename($path),
                     'size' => $size,
                     'type' => $type,
-                    'url' => Str::sanitizeUrl(request()->getSchemeAndHttpHost().$encodedPath),
+                    'url' => Str::sanitizeUrl($mediaUrl),
                 ];
             });
         });
