@@ -78,6 +78,31 @@ class AppServiceProvider extends ServiceProvider
                 }
 
                 $basePath = trim(request()->getBaseUrl(), '/');
+                if ($basePath === '' && ($route = request()->route())) {
+                    $requestSegments = explode('/', trim(request()->getPathInfo(), '/'));
+                    $routeSegments = explode('/', trim($route->uri(), '/'));
+                    $prefixLength = count($requestSegments) - count($routeSegments);
+
+                    if ($prefixLength > 0) {
+                        $routeMatches = true;
+
+                        foreach ($routeSegments as $index => $routeSegment) {
+                            if (preg_match('/^\{.*\}$/', $routeSegment)) {
+                                continue;
+                            }
+
+                            if (rawurldecode($requestSegments[$prefixLength + $index] ?? '') !== $routeSegment) {
+                                $routeMatches = false;
+                                break;
+                            }
+                        }
+
+                        if ($routeMatches) {
+                            $basePath = implode('/', array_slice($requestSegments, 0, $prefixLength));
+                        }
+                    }
+                }
+
                 $storagePath = '/'.ltrim($storagePath, '/');
                 $basePathPrefix = $basePath !== '' && ! str_starts_with($storagePath, '/'.$basePath.'/')
                     ? $basePath.'/'
