@@ -1154,9 +1154,15 @@ Route::prefix('v1')->group(function () {
     // ==========================================
     // 5. Coupons API
     // ==========================================
-    Route::get('/coupons', function (Request $request) {
-        $query = Coupon::where('status', 1);
-        $coupons = $query->latest()->get();
+    Route::get('/coupons', function () {
+        $today = now()->toDateString();
+        $coupons = Coupon::query()
+            ->where('status', 'active')
+            ->where('is_display', true)
+            ->whereDate('start_date', '<=', $today)
+            ->whereDate('end_date', '>=', $today)
+            ->latest()
+            ->get();
 
         return response()->json([
             'status' => 'success',
@@ -1167,8 +1173,13 @@ Route::prefix('v1')->group(function () {
 
     Route::post('/coupons/validate', function (Request $request) {
         $request->validate(['code' => 'required|string']);
-        $coupon = Coupon::where('code', $request->input('code'))
-            ->where('status', 1)
+        $today = now()->toDateString();
+        $coupon = Coupon::query()
+            ->where('code', $request->input('code'))
+            ->where('status', 'active')
+            ->where('is_display', true)
+            ->whereDate('start_date', '<=', $today)
+            ->whereDate('end_date', '>=', $today)
             ->first();
 
         if (! $coupon) {
