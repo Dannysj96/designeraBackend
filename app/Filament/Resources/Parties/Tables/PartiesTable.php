@@ -32,7 +32,7 @@ class PartiesTable
         return $table
             ->columns([
                 TextColumn::make('name')->searchable(),
-                TextColumn::make('symbol')->searchable(),
+                TextColumn::make('symbol'),
                 TextColumn::make('state')->searchable(),
                 TextColumn::make('status')->searchable(),
             ])
