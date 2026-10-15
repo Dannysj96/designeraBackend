@@ -1157,10 +1157,10 @@ Route::prefix('v1')->group(function () {
     Route::get('/coupons', function () {
         $today = now()->toDateString();
         $coupons = Coupon::query()
-            ->where('status', 'active')
-            ->where('is_display', true)
-            ->whereDate('start_date', '<=', $today)
-            ->whereDate('end_date', '>=', $today)
+            ->where('status', 1)
+            ->where('is_display', 1)
+            ->whereDate('date_start', '<=', $today)
+            ->whereDate('date_end', '>=', $today)
             ->latest()
             ->get();
 
@@ -1176,10 +1176,10 @@ Route::prefix('v1')->group(function () {
         $today = now()->toDateString();
         $coupon = Coupon::query()
             ->where('code', $request->input('code'))
-            ->where('status', 'active')
-            ->where('is_display', true)
-            ->whereDate('start_date', '<=', $today)
-            ->whereDate('end_date', '>=', $today)
+            ->where('status', 1)
+            ->where('is_display', 1)
+            ->whereDate('date_start', '<=', $today)
+            ->whereDate('date_end', '>=', $today)
             ->first();
 
         if (! $coupon) {
