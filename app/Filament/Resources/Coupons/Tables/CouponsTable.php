@@ -28,9 +28,14 @@ class CouponsTable
                 TextColumn::make('type')
                     ->label('Type')
                     ->badge()
+                    ->formatStateUsing(fn (string $state): string => match ($state) {
+                        'F' => 'Fixed Price',
+                        'P' => 'Percentage (%)',
+                        default => $state,
+                    })
                     ->color(fn (string $state): string => match ($state) {
-                        'fixed' => 'info',
-                        'percentage' => 'warning',
+                        'F' => 'info',
+                        'P' => 'warning',
                         default => 'gray',
                     }),
                 TextColumn::make('discount')
@@ -39,26 +44,31 @@ class CouponsTable
                 TextColumn::make('max_discount')
                     ->label('Max Discount')
                     ->sortable(),
-                TextColumn::make('start_date')
+                TextColumn::make('date_start')
                     ->label('Start Date')
                     ->date()
                     ->sortable(),
-                TextColumn::make('end_date')
+                TextColumn::make('date_end')
                     ->label('End Date')
                     ->date()
                     ->sortable(),
-                TextColumn::make('total_uses')
+                TextColumn::make('uses_total')
                     ->label('Total Uses')
                     ->sortable(),
-                TextColumn::make('use_per_user')
+                TextColumn::make('uses_customer')
                     ->label('Use Per User')
                     ->sortable(),
                 TextColumn::make('status')
                     ->label('Status')
                     ->badge()
+                    ->formatStateUsing(fn (string $state): string => match ($state) {
+                        '1' => 'Active',
+                        '0' => 'Deactive',
+                        default => $state,
+                    })
                     ->color(fn (string $state): string => match ($state) {
-                        'active' => 'success',
-                        'deactive' => 'danger',
+                        '1' => 'success',
+                        '0' => 'danger',
                         default => 'gray',
                     }),
                 IconColumn::make('is_display')

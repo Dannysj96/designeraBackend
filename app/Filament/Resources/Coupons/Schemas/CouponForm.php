@@ -3,7 +3,6 @@
 namespace App\Filament\Resources\Coupons\Schemas;
 
 use App\Models\Plan;
-use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
@@ -35,10 +34,10 @@ class CouponForm
                         Select::make('type')
                             ->label('Type')
                             ->options([
-                                'fixed' => 'Fixed Price',
-                                'percentage' => 'Percentage (%)',
+                                'F' => 'Fixed Price',
+                                'P' => 'Percentage (%)',
                             ])
-                            ->default('fixed')
+                            ->default('F')
                             ->native(false)
                             ->required(),
 
@@ -58,24 +57,24 @@ class CouponForm
                             ->placeholder('Max Discount..')
                             ->numeric(),
 
-                        DatePicker::make('start_date')
+                        DatePicker::make('date_start')
                             ->label('Start Date')
                             ->default(now()->toDateString())
                             ->required(),
 
-                        DatePicker::make('end_date')
+                        DatePicker::make('date_end')
                             ->label('End Date')
                             ->default(now()->toDateString())
                             ->required(),
 
-                        TextInput::make('total_uses')
+                        TextInput::make('uses_total')
                             ->label('Total Uses')
                             ->placeholder('Total Uses..')
                             ->numeric()
                             ->default(0)
                             ->required(),
 
-                        TextInput::make('use_per_user')
+                        TextInput::make('uses_customer')
                             ->label('Use Per User')
                             ->placeholder('Use Per Customer..')
                             ->numeric()
@@ -85,10 +84,10 @@ class CouponForm
                         Select::make('status')
                             ->label('Status')
                             ->options([
-                                'active' => 'Active',
-                                'deactive' => 'Deactive',
+                                1 => 'Active',
+                                0 => 'Deactive',
                             ])
-                            ->default('active')
+                            ->default(1)
                             ->native(false)
                             ->required(),
 
@@ -99,14 +98,14 @@ class CouponForm
 
                         Select::make('user_type')
                             ->label('User Type')
-                            ->options(fn() => Plan::pluck('name', 'name')->toArray() ?: [
-                                'Free' => 'Free',
-                                'Pro' => 'Pro',
-                                'Enterprise' => 'Enterprise',
+                            ->options(fn () => Plan::pluck('name', 'id')->toArray() ?: [
+                                'free' => 'Free',
+                                'pro' => 'Pro',
+                                'enterprise' => 'Enterprise',
                             ])
+                            ->multiple()
                             ->searchable()
                             ->preload(),
-                            // ->default(1),
                     ]),
             ]);
     }

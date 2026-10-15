@@ -15,7 +15,7 @@ class CouponListApiTest extends TestCase
         $this->createCouponsTable();
 
         $this->createCoupon('CURRENT-ACTIVE');
-        $this->createCoupon('INACTIVE', status: 'deactive');
+        $this->createCoupon('INACTIVE', status: 0);
         $this->createCoupon('HIDDEN', isDisplay: false);
         $this->createCoupon('NOT-STARTED', startDate: now()->addDay()->toDateString());
         $this->createCoupon('EXPIRED', endDate: now()->subDay()->toDateString());
@@ -44,15 +44,15 @@ class CouponListApiTest extends TestCase
             $table->id();
             $table->string('name');
             $table->string('code')->unique();
-            $table->string('type');
+            $table->char('type', 1);
             $table->integer('total')->nullable();
             $table->decimal('discount', 10, 2);
             $table->decimal('max_discount', 10, 2)->nullable();
-            $table->date('start_date');
-            $table->date('end_date');
-            $table->integer('total_uses')->default(0);
-            $table->integer('use_per_user')->default(1);
-            $table->string('status');
+            $table->date('date_start');
+            $table->date('date_end');
+            $table->integer('uses_total')->default(0);
+            $table->integer('uses_customer')->default(1);
+            $table->integer('status')->default(0);
             $table->boolean('is_display')->default(true);
             $table->json('user_type')->nullable();
             $table->timestamps();
@@ -61,7 +61,7 @@ class CouponListApiTest extends TestCase
 
     private function createCoupon(
         string $code,
-        string $status = 'active',
+        int $status = 1,
         bool $isDisplay = true,
         ?string $startDate = null,
         ?string $endDate = null,
@@ -69,14 +69,14 @@ class CouponListApiTest extends TestCase
         return Coupon::query()->create([
             'name' => $code,
             'code' => $code,
-            'type' => 'fixed',
+            'type' => 'F',
             'total' => 100,
             'discount' => 20,
             'max_discount' => 20,
-            'start_date' => $startDate ?? now()->subDay()->toDateString(),
-            'end_date' => $endDate ?? now()->addDay()->toDateString(),
-            'total_uses' => 0,
-            'use_per_user' => 1,
+            'date_start' => $startDate ?? now()->subDay()->toDateString(),
+            'date_end' => $endDate ?? now()->addDay()->toDateString(),
+            'uses_total' => 0,
+            'uses_customer' => 1,
             'status' => $status,
             'is_display' => $isDisplay,
         ]);
