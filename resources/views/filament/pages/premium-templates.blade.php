@@ -221,7 +221,7 @@
         .pt-image-card img {
             width: 100%;
             height: 100%;
-            object-fit: cover;
+            object-fit: contain;
             border-radius: 4px;
         }
 
@@ -531,7 +531,7 @@
         .template-upload-preview {
             width: 100%;
             height: 100%;
-            object-fit: cover;
+            object-fit: contain;
         }
         .btn-remove-template-img {
             display: inline-flex;

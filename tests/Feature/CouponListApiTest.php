@@ -70,7 +70,6 @@ class CouponListApiTest extends TestCase
             $table->string('razorpay_order_id', 64)->unique();
             $table->string('razorpay_payment_id', 64)->nullable()->unique();
             $table->decimal('amount', 10, 2);
-            $table->decimal('credit_amount', 10, 2);
             $table->string('currency', 3)->default('INR');
             $table->string('status', 20)->default('created');
             $table->json('gateway_order_data')->nullable();
@@ -115,8 +114,12 @@ class CouponListApiTest extends TestCase
         $this->assertDatabaseHas('wallet_payments', [
             'razorpay_order_id' => 'order_test_123',
             'amount' => '80.00',
-            'credit_amount' => '100.00',
         ]);
+        $gatewayOrderData = json_decode(
+            (string) DB::table('wallet_payments')->value('gateway_order_data'),
+            true,
+        );
+        $this->assertSame(10000, $gatewayOrderData['credit_amount']);
 
         $signature = hash_hmac('sha256', 'order_test_123|pay_test_123', 'test_secret');
         $this->postJson('/api/v1/razorpay_verification', [

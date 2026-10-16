@@ -60,12 +60,19 @@
         .fm-card:hover .fm-card-img {
             transform: scale(1.05);
         }
+        .fm-card:hover .fm-card-img.fm-card-img-template {
+            transform: none;
+        }
         .fm-card:hover .fm-download-btn {
             opacity: 1 !important;
             transform: scale(1) !important;
         }
         .fm-card-img {
             transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .fm-card-img-template {
+            object-fit: contain !important;
+            background: #f8fafc;
         }
         @keyframes fm-spin {
             from { transform: rotate(0deg); }
@@ -314,7 +321,8 @@
                             </div>
 
                             {{-- Image Thumbnail --}}
-                            <img :src="file.thumb_url || file.url" :alt="file.name" x-show="!file.is_video" class="fm-card-img"
+                            <img :src="file.thumb_url || file.url" :alt="file.name" x-show="!file.is_video"
+                                :class="isTemplatePreview(file) ? 'fm-card-img fm-card-img-template' : 'fm-card-img'"
                                 style="width:100%;height:100%;object-fit:cover;" onerror="this.src=file.url;" loading="lazy" />
 
                             {{-- Video Placeholder --}}
@@ -483,6 +491,11 @@
                 if (!this.search) return this.files;
                 const s = this.search.toLowerCase();
                 return this.files.filter(f => f.name.toLowerCase().includes(s));
+            },
+
+            isTemplatePreview(file) {
+                const path = String(file.path || '').toLowerCase().replaceAll('_', '-').replaceAll(' ', '-');
+                return path.includes('template');
             },
 
             async init() {
