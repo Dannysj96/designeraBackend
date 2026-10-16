@@ -151,6 +151,7 @@ Route::prefix('v1')->group(function () {
     Route::post('/razorpay_integration', function (Request $request) use ($resolveApiUser) {
         $validated = $request->validate([
             'amount' => ['required', 'numeric', 'min:1', 'max:100000'],
+            'coupon_code' => ['nullable', 'string', 'max:20'],
             'order_id' => ['nullable', 'string', 'max:40'],
             'user_id' => ['nullable', 'integer', 'exists:users,id'],
         ]);
@@ -173,7 +174,38 @@ Route::prefix('v1')->group(function () {
             ], 503);
         }
 
-        $amountPaise = (int) round((float) $validated['amount'] * 100);
+        $creditAmountPaise = (int) round((float) $validated['amount'] * 100);
+        $payableAmountPaise = $creditAmountPaise;
+        $coupon = null;
+
+        if (filled($validated['coupon_code'] ?? null)) {
+            $coupon = Coupon::query()
+                ->where('code', $validated['coupon_code'])
+                ->where('status', 1)
+                ->where('is_display', 1)
+                ->whereDate('date_start', '<=', now()->toDateString())
+                ->whereDate('date_end', '>=', now()->toDateString())
+                ->first();
+
+            if (! $coupon || (float) $validated['amount'] < (float) $coupon->total) {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'This coupon is invalid or the top-up amount does not meet its minimum.',
+                ], 422);
+            }
+
+            $discount = (float) $coupon->discount;
+            if ($coupon->type === 'P') {
+                $discount = (float) $validated['amount'] * $discount / 100;
+            }
+            if ($coupon->max_discount !== null && (float) $coupon->max_discount > 0) {
+                $discount = min($discount, (float) $coupon->max_discount);
+            }
+
+            $payableAmountPaise = max(100, $creditAmountPaise - (int) round($discount * 100));
+        }
+
+        $amountPaise = $payableAmountPaise;
         $receipt = Str::limit('W'.$user->id.'_'.($validated['order_id'] ?? Str::uuid()), 40, '');
 
         try {
@@ -213,6 +245,7 @@ Route::prefix('v1')->group(function () {
             'user_id' => $user->id,
             'razorpay_order_id' => $razorpayOrderId,
             'amount' => number_format($amountPaise / 100, 2, '.', ''),
+            'credit_amount' => number_format($creditAmountPaise / 100, 2, '.', ''),
             'currency' => 'INR',
             'status' => 'created',
             'gateway_order_data' => json_encode([
@@ -232,6 +265,8 @@ Route::prefix('v1')->group(function () {
                 'razorpay_key' => $key,
                 'amount' => $amountPaise / 100,
                 'amount_paise' => $amountPaise,
+                'credit_amount' => $creditAmountPaise / 100,
+                'coupon_code' => $coupon?->code,
                 'currency' => 'INR',
             ],
         ]);
@@ -359,7 +394,8 @@ Route::prefix('v1')->group(function () {
             }
 
             $lockedUser = DB::table('users')->where('id', $user->id)->lockForUpdate()->first();
-            $newBalance = (float) ($lockedUser->balance ?? 0) + (float) $lockedPayment->amount;
+            $creditedAmount = (float) ($lockedPayment->credit_amount ?? $lockedPayment->amount);
+            $newBalance = (float) ($lockedUser->balance ?? 0) + $creditedAmount;
             DB::table('users')->where('id', $user->id)->update([
                 'balance' => number_format($newBalance, 2, '.', ''),
                 'updated_at' => now(),
@@ -367,7 +403,7 @@ Route::prefix('v1')->group(function () {
 
             DB::table('transactions')->insert([
                 'user_id' => (string) $user->id,
-                'amount' => $lockedPayment->amount,
+                'amount' => number_format($creditedAmount, 2, '.', ''),
                 'currency' => $lockedPayment->currency,
                 'type' => 'credit',
                 'payment_method' => 'razorpay',
@@ -409,7 +445,7 @@ Route::prefix('v1')->group(function () {
             'status' => true,
             'message' => $result['credited'] ? 'Payment verified and wallet credited.' : 'Payment was already verified.',
             'wallet_credited' => $result['credited'],
-            'amount_credited' => (float) $walletPayment->amount,
+            'amount_credited' => (float) ($walletPayment->credit_amount ?? $walletPayment->amount),
             'balance' => $result['balance'],
             'data' => [
                 'razorpay_order_id' => $validated['razorpay_order_id'],
