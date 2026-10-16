@@ -241,21 +241,29 @@ Route::prefix('v1')->group(function () {
             ], 502);
         }
 
-        DB::table('wallet_payments')->insert([
+        $gatewayOrderData = [
+            'amount' => $amountPaise,
+            'credit_amount' => $creditAmountPaise,
+            'currency' => 'INR',
+            'receipt' => $receipt,
+            'coupon_code' => $coupon?->code,
+        ];
+        $walletPaymentData = [
             'user_id' => $user->id,
             'razorpay_order_id' => $razorpayOrderId,
             'amount' => number_format($amountPaise / 100, 2, '.', ''),
-            'credit_amount' => number_format($creditAmountPaise / 100, 2, '.', ''),
             'currency' => 'INR',
             'status' => 'created',
-            'gateway_order_data' => json_encode([
-                'amount' => $amountPaise,
-                'currency' => 'INR',
-                'receipt' => $receipt,
-            ], JSON_THROW_ON_ERROR),
+            'gateway_order_data' => json_encode($gatewayOrderData, JSON_THROW_ON_ERROR),
             'created_at' => now(),
             'updated_at' => now(),
-        ]);
+        ];
+
+        if (Schema::hasColumn('wallet_payments', 'credit_amount')) {
+            $walletPaymentData['credit_amount'] = number_format($creditAmountPaise / 100, 2, '.', '');
+        }
+
+        DB::table('wallet_payments')->insert($walletPaymentData);
 
         return response()->json([
             'status' => true,
@@ -394,7 +402,11 @@ Route::prefix('v1')->group(function () {
             }
 
             $lockedUser = DB::table('users')->where('id', $user->id)->lockForUpdate()->first();
-            $creditedAmount = (float) ($lockedPayment->credit_amount ?? $lockedPayment->amount);
+            $storedOrderData = json_decode((string) ($lockedPayment->gateway_order_data ?? ''), true) ?: [];
+            $storedCreditAmount = isset($storedOrderData['credit_amount'])
+                ? (int) $storedOrderData['credit_amount'] / 100
+                : (float) $lockedPayment->amount;
+            $creditedAmount = (float) ($lockedPayment->credit_amount ?? $storedCreditAmount);
             $newBalance = (float) ($lockedUser->balance ?? 0) + $creditedAmount;
             DB::table('users')->where('id', $user->id)->update([
                 'balance' => number_format($newBalance, 2, '.', ''),
@@ -441,11 +453,16 @@ Route::prefix('v1')->group(function () {
             ], 409);
         }
 
+        $storedOrderData = json_decode((string) ($walletPayment->gateway_order_data ?? ''), true) ?: [];
+        $storedCreditAmount = isset($storedOrderData['credit_amount'])
+            ? (int) $storedOrderData['credit_amount'] / 100
+            : (float) $walletPayment->amount;
+
         return response()->json([
             'status' => true,
             'message' => $result['credited'] ? 'Payment verified and wallet credited.' : 'Payment was already verified.',
             'wallet_credited' => $result['credited'],
-            'amount_credited' => (float) ($walletPayment->credit_amount ?? $walletPayment->amount),
+            'amount_credited' => (float) ($walletPayment->credit_amount ?? $storedCreditAmount),
             'balance' => $result['balance'],
             'data' => [
                 'razorpay_order_id' => $validated['razorpay_order_id'],
