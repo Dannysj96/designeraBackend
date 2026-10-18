@@ -91,7 +91,7 @@ class FileManager
 
             $extension = strtolower(pathinfo($file, PATHINFO_EXTENSION));
 
-            if (in_array($extension, ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'mp4', 'webm', 'mov', 'avi'])) {
+            if (in_array($extension, ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'mp4', 'webm', 'mov', 'avi', 'json'])) {
                 try {
                     $size = $disk->size($file);
                     $mtime = $disk->lastModified($file);

@@ -6,6 +6,7 @@ use App\Helpers\FileManagerAction;
 use App\Models\Setting;
 use Filament\Actions\Action;
 use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput; // Added Textarea import
 use Filament\Forms\Concerns\InteractsWithForms;
@@ -36,7 +37,19 @@ class Settings extends Page implements HasForms
 
     public function mount(): void
     {
-        $this->form->fill(Setting::currentArray());
+        $data = Setting::currentArray();
+
+        if (filled($data['splash_screen'] ?? null) && blank($data['splash_screen_type'] ?? null)) {
+            $path = parse_url((string) $data['splash_screen'], PHP_URL_PATH) ?: (string) $data['splash_screen'];
+            $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+            $data['splash_screen_type'] = match ($extension) {
+                'json' => 'lottie',
+                'mp4', 'mov', 'webm' => 'video',
+                default => 'image',
+            };
+        }
+
+        $this->form->fill($data);
     }
 
     public function form(Schema $schema): Schema
@@ -148,22 +161,38 @@ class Settings extends Page implements HasForms
                                 Section::make('App Introduction')
                                     ->description('Manage the splash screen shown when the app starts.')
                                     ->components([
+                                        Select::make('splash_screen_type')
+                                            ->label('Splash Screen Type')
+                                            ->placeholder('Select a splash screen type')
+                                            ->options([
+                                                'image' => 'Image',
+                                                'video' => 'Video',
+                                                'lottie' => 'Lottie JSON',
+                                            ])
+                                            ->required(fn ($get): bool => filled($get('splash_screen')))
+                                            ->live()
+                                            ->native(false)
+                                            ->afterStateUpdated(function ($get, $set): void {
+                                                if (filled($get('splash_screen'))) {
+                                                    $set('splash_screen', null);
+                                                }
+                                            })
+                                            ->columnSpanFull(),
+
                                         FileUpload::make('splash_screen')
                                             ->label('Splash Screen')
                                             ->disk('public')
                                             ->directory('site-settings')
-                                            ->acceptedFileTypes([
-                                                'image/jpeg',
-                                                'image/png',
-                                                'image/webp',
-                                                'image/gif',
-                                                'video/mp4',
-                                                'video/quicktime',
-                                                'video/webm',
-                                                'application/json',
-                                            ])
+                                            ->acceptedFileTypes(fn ($get): array => match ($get('splash_screen_type')) {
+                                                'image' => ['image/jpeg', 'image/png', 'image/webp', 'image/gif'],
+                                                'video' => ['video/mp4', 'video/quicktime', 'video/webm'],
+                                                'lottie' => ['application/json'],
+                                                default => [],
+                                            })
+                                            ->mimeTypeMap(['json' => 'application/json'])
+                                            ->disabled(fn ($get): bool => blank($get('splash_screen_type')))
                                             ->maxSize(51200)
-                                            ->helperText('Upload an image, MP4/MOV/WebM video, or Lottie JSON animation. Maximum 50 MB.')
+                                            ->helperText('Choose the type above, then upload a matching image, video, or Lottie JSON file. Maximum 50 MB.')
                                             ->columnSpanFull(),
 
                                         TextInput::make('splash_duration')

@@ -215,9 +215,9 @@
         </div>
 
         {{-- Hidden file inputs --}}
-        <input type="file" id="fm-file-upload-input" multiple accept="image/*,video/*"
+        <input type="file" id="fm-file-upload-input" multiple accept="image/*,video/*,.json"
             style="display:none;" @change="handleUpload($event)" />
-        <input type="file" id="fm-template-upload-input" multiple accept="image/*,.psd,.ai"
+        <input type="file" id="fm-template-upload-input" multiple accept="image/*,.psd,.ai,.json"
             style="display:none;" @change="handleUpload($event)" />
     </div>
 
@@ -321,7 +321,7 @@
                             </div>
 
                             {{-- Image Thumbnail --}}
-                            <img :src="file.thumb_url || file.url" :alt="file.name" x-show="!file.is_video"
+                            <img :src="file.thumb_url || file.url" :alt="file.name" x-show="!file.is_video && !isJsonFile(file)"
                                 :class="isTemplatePreview(file) ? 'fm-card-img fm-card-img-template' : 'fm-card-img'"
                                 style="width:100%;height:100%;object-fit:cover;" onerror="this.src=file.url;" loading="lazy" />
 
@@ -330,6 +330,13 @@
                                 <svg style="width:32px;height:32px;opacity:0.8;" fill="currentColor" viewBox="0 0 20 20">
                                     <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd"/>
                                 </svg>
+                            </div>
+
+                            <div x-show="isJsonFile(file)" style="display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;height:100%;background:#f1f5f9;color:#7c3aed;">
+                                <svg style="width:30px;height:30px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M8 4h7l5 5v11H8a2 2 0 01-2-2V6a2 2 0 012-2zM15 4v5h5M9 14h6M9 17h6"/>
+                                </svg>
+                                <span style="margin-top:4px;font-size:11px;font-weight:700;">JSON</span>
                             </div>
 
                             {{-- Selected Overlay --}}
@@ -496,6 +503,10 @@
             isTemplatePreview(file) {
                 const path = String(file.path || '').toLowerCase().replaceAll('_', '-').replaceAll(' ', '-');
                 return path.includes('template');
+            },
+
+            isJsonFile(file) {
+                return String(file.name || '').toLowerCase().endsWith('.json');
             },
 
             async init() {
@@ -699,6 +710,9 @@
                         else if (['webp'].includes(ext)) mimeType = 'image/webp';
                         else if (['svg'].includes(ext)) mimeType = 'image/svg+xml';
                         else if (['mp4'].includes(ext)) mimeType = 'video/mp4';
+                        else if (['mov'].includes(ext)) mimeType = 'video/quicktime';
+                        else if (['webm'].includes(ext)) mimeType = 'video/webm';
+                        else if (['json'].includes(ext)) mimeType = 'application/json';
 
                         return {
                             path: path,

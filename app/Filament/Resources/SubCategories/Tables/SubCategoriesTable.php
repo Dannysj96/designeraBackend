@@ -20,6 +20,11 @@ class SubCategoriesTable
                     ->placeholder('N/A')
                     ->searchable()
                     ->sortable(),
+                TextColumn::make('category.title')
+                    ->label('Category')
+                    ->placeholder('N/A')
+                    ->searchable()
+                    ->sortable(),
                 TextColumn::make('title')
                     ->label('Title')
                     ->searchable()
