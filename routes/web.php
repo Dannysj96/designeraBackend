@@ -32,7 +32,7 @@ Route::middleware(['web', 'auth'])->group(function () {
                 'path' => ['required', 'string', 'max:1024'],
             ]);
             $path = str_replace('\\', '/', trim($validated['path'], '/'));
-            $allowedExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'mp4', 'webm', 'mov', 'avi'];
+            $allowedExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'mp4', 'webm', 'mov', 'avi', 'json'];
             $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
 
             abort_if(

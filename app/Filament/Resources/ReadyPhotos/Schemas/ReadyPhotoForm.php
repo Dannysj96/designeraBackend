@@ -5,7 +5,6 @@ namespace App\Filament\Resources\ReadyPhotos\Schemas;
 use App\Helpers\FileManagerAction;
 use App\Models\Category;
 use App\Models\ParentCategory;
-use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Radio;
 use Filament\Forms\Components\Select;
@@ -76,8 +75,10 @@ class ReadyPhotoForm
                             ->default(1)
                             ->required(),
 
-                        CheckboxList::make('party')
+                        Select::make('party')
                             ->label('Party')
+                            ->placeholder('Select parties')
+                            ->multiple()
                             ->options([
                                 'bjp' => 'BJP',
                                 'inc' => 'INC (Congress)',
@@ -86,8 +87,9 @@ class ReadyPhotoForm
                                 'mns' => 'MNS',
                                 'aap' => 'AAP',
                             ])
-                            ->bulkToggleable()
-                            ->columns(2)
+                            ->searchable()
+                            ->preload()
+                            ->native(false)
                             ->columnSpanFull(),
                     ]),
             ]);

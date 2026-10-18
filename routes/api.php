@@ -529,11 +529,15 @@ Route::prefix('v1')->group(function () {
             $splashPath = $settings['splash_screen'];
             $splashUrlPath = parse_url($splashPath, PHP_URL_PATH) ?: $splashPath;
             $splashExtension = strtolower(pathinfo($splashUrlPath, PATHINFO_EXTENSION));
-            $settings['splash_screen_type'] = match ($splashExtension) {
+            $inferredSplashType = match ($splashExtension) {
                 'json' => 'lottie',
                 'mp4', 'mov', 'webm' => 'video',
                 default => 'image',
             };
+            $configuredSplashType = $settings['splash_screen_type'] ?? null;
+            $settings['splash_screen_type'] = in_array($configuredSplashType, ['image', 'video', 'lottie'], true)
+                ? $configuredSplashType
+                : $inferredSplashType;
             $settings['splash_screen'] = FileManager::publicOriginalUrl($splashPath);
         } else {
             $settings['splash_screen_type'] = null;
