@@ -1067,7 +1067,7 @@ Route::prefix('v1')->group(function () {
             ->get()
             ->each(function (Plan $plan): void {
                 if (filled($plan->image)) {
-                    $plan->image = FileManager::publicThumbnailUrl($plan->image);
+                    $plan->image = FileManager::publicOriginalUrl($plan->image);
                 }
             });
 
@@ -1085,7 +1085,7 @@ Route::prefix('v1')->group(function () {
         }
 
         if (filled($plan->image)) {
-            $plan->image = FileManager::publicThumbnailUrl($plan->image);
+            $plan->image = FileManager::publicOriginalUrl($plan->image);
         }
 
         return response()->json(['status' => 'success', 'data' => $plan]);
@@ -1483,12 +1483,6 @@ Route::prefix('v1')->group(function () {
                             ->whereDay('date', $target->day);
                     });
             });
-        }
-
-        // If filtered query has no items, fallback to all active special days
-        $count = (clone $query)->count();
-        if ($count === 0 && ($request->filled('day') || $request->filled('date'))) {
-            $query = clone $baseQuery;
         }
 
         $limit = min((int) $request->input('limit', 50), 200);
