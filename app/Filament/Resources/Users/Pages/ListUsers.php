@@ -6,6 +6,7 @@ use App\Filament\Resources\Users\UserResource;
 use App\Models\Plan;
 use App\Models\User;
 use App\Models\UserPlanHistory;
+use App\Services\AssignDefaultFreePlanToUser;
 use Filament\Actions\CreateAction;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ListRecords;
@@ -24,7 +25,9 @@ class ListUsers extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
-            CreateAction::make()->label('New User'),
+            CreateAction::make()
+                ->label('New User')
+                ->after(fn (User $record) => app(AssignDefaultFreePlanToUser::class)->assign($record)),
         ];
     }
 
