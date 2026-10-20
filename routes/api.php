@@ -25,6 +25,7 @@ use App\Models\UserDeviceToken;
 use App\Models\UserPlanHistory;
 use App\Models\UserPremiumTemplate;
 use App\Models\Video;
+use App\Services\AssignDefaultFreePlanToUser;
 use Carbon\Carbon;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
@@ -67,47 +68,9 @@ Route::prefix('v1')->group(function () {
 
     $createUserWithFreePlan = function (array $attributes): User {
         return DB::transaction(function () use ($attributes): User {
-            $freePlan = Plan::query()
-                ->where('price', 0)
-                ->where(function ($query) {
-                    $query->where('status', 'active')->orWhere('status', 1);
-                })
-                ->orderBy('id')
-                ->first();
+            $user = User::create($attributes);
 
-            if (! $freePlan) {
-                return User::create($attributes);
-            }
-
-            $durationDays = max(1, (int) ($freePlan->duration ?? $freePlan->duration_days ?? 1));
-            $startDate = now();
-            $endDate = (clone $startDate)->addDays($durationDays);
-            $dailyDesignLimit = (int) $freePlan->daily_limit_design;
-            $dailyVideoLimit = (int) $freePlan->daily_limit_video;
-
-            $user = User::create([
-                ...$attributes,
-                'plan_id' => (string) $freePlan->id,
-                'daily_download_limit_design' => $dailyDesignLimit,
-                'daily_download_limit_video' => $dailyVideoLimit,
-            ]);
-
-            UserPlanHistory::create([
-                'user_id' => $user->id,
-                'plan_id' => $freePlan->id,
-                'plan_name' => $freePlan->name,
-                'price' => $freePlan->price,
-                'duration_days' => $durationDays,
-                'start_date' => $startDate,
-                'end_date' => $endDate,
-                'status' => 'active',
-                'daily_limit_design' => $dailyDesignLimit,
-                'daily_limit_video' => $dailyVideoLimit,
-                'payment_method' => 'free_trial',
-                'notes' => 'Default free plan assigned on account creation',
-            ]);
-
-            return $user;
+            return app(AssignDefaultFreePlanToUser::class)->assign($user);
         });
     };
 
