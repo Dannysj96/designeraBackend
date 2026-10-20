@@ -657,9 +657,24 @@ Route::prefix('v1')->group(function () {
         ]);
 
         $login = $request->input('login');
-        $user = User::where('email', $login)
-            ->orWhere('phone', $login)
-            ->first();
+        $isPhoneLogin = ! str_contains($login, '@');
+        $userQuery = User::query();
+
+        if ($isPhoneLogin) {
+            $userQuery->where('phone', $login)->orWhere('mobile', $login);
+        } else {
+            $userQuery->where('email', $login);
+        }
+
+        $user = $userQuery->first();
+
+        if (! $user && $isPhoneLogin) {
+            return response()->json([
+                'status' => 'error',
+                'code' => 'USER_NOT_FOUND',
+                'message' => 'No account is registered with this phone number.',
+            ]);
+        }
 
         if (! $user || ! Hash::check($request->input('password'), $user->password)) {
             return response()->json([
@@ -693,16 +708,36 @@ Route::prefix('v1')->group(function () {
     Route::post('/auth/register', function (Request $request) {
         $validated = $request->validate([
             'name' => 'required|string|max:255',
-            'email' => 'required|email|unique:users,email',
-            'mobile' => 'nullable|string|max:20',
+            'email' => ['nullable', 'email', 'max:255', Rule::unique('users', 'email')],
+            'mobile' => [
+                'required',
+                'string',
+                'max:20',
+                Rule::unique('users', 'phone'),
+                Rule::unique('users', 'mobile'),
+            ],
             'password' => 'required|string|min:6',
-            'state' => 'nullable|string',
-            'city' => 'nullable|string',
-            'party' => 'nullable|string',
+            'state' => 'required|string',
+            'city' => 'required|string',
+            'party' => 'required|string',
+            'language' => 'required|string',
+            'designation_1' => 'required|string|max:255',
+            'designation_2' => 'nullable|string|max:255',
+            'whatsapp' => 'nullable|string|max:20',
+            'facebook' => 'nullable|url|max:255',
+            'instagram' => 'nullable|url|max:255',
+            'profile_photo' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:5120',
         ]);
 
-        if (isset($validated['mobile'])) {
-            $validated['phone'] = $validated['mobile'];
+        $validated['phone'] = $validated['mobile'];
+        unset($validated['mobile']);
+
+        if (empty($validated['email'])) {
+            $validated['email'] = $validated['phone'].'+'.Str::lower(Str::random(8)).'@designera.shop';
+        }
+
+        if ($request->hasFile('profile_photo')) {
+            $validated['profile_photo'] = $request->file('profile_photo')->store('users/profile', 'public');
         }
 
         $validated['password'] = Hash::make($validated['password']);
