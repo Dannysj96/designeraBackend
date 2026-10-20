@@ -26,6 +26,7 @@ use App\Models\UserPlanHistory;
 use App\Models\UserPremiumTemplate;
 use App\Models\Video;
 use App\Services\AssignDefaultFreePlanToUser;
+use App\Services\ProcessUserPlanExpiry;
 use Carbon\Carbon;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
@@ -2007,6 +2008,9 @@ Route::prefix('v1')->group(function () {
             ], 401);
         }
 
+        app(ProcessUserPlanExpiry::class)->processIfExpired($user);
+        $user->refresh();
+
         $today = Carbon::today()->toDateString();
         $viewType = strtolower((string) $request->input('view_type', $design->view_type ?? ''));
         $downloadHistoryType = $viewType === 'video' ? 'video' : 'design';
@@ -2019,6 +2023,8 @@ Route::prefix('v1')->group(function () {
             $activePlan = null;
         }
         $activePlan ??= $user->plan;
+        $activePlanName = mb_strtolower(trim((string) ($activePlan->plan_name ?? $activePlan->name ?? '')));
+        $isFreePlan = $activePlanName === 'free';
         $planLimit = $downloadHistoryType === 'video'
             ? ($activePlan->daily_limit_video ?? 0)
             : ($activePlan->daily_limit_design ?? 0);
@@ -2038,7 +2044,10 @@ Route::prefix('v1')->group(function () {
             ->count();
 
         $limitExhausted = ($dailyLimit > 0 && $downloadsToday >= $dailyLimit);
-        $designPrice = (float) ($design->price > 0 ? $design->price : 5.00);
+        $actualDesignPrice = (float) ($design->price ?? 0);
+        $isPaidDesign = ! $isVideo && $actualDesignPrice > 0;
+        $requiresWalletForDesign = $isFreePlan && $isPaidDesign;
+        $designPrice = $actualDesignPrice > 0 ? $actualDesignPrice : 5.00;
         $walletColumn = Schema::hasColumn('users', 'balance')
             ? 'balance'
             : (Schema::hasColumn('users', 'wallet_balance') ? 'wallet_balance' : null);
@@ -2046,12 +2055,30 @@ Route::prefix('v1')->group(function () {
             ? 0.00
             : (float) DB::table('users')->where('id', $user->id)->value($walletColumn);
 
-        // Case A: Limit reached, but user has not agreed to use wallet
-        if ($limitExhausted && ! $useWallet) {
+        if ($isFreePlan && ! $isVideo && ! $isPaidDesign && $limitExhausted) {
             return response()->json([
                 'status' => 'limit_reached',
                 'limit_exhausted' => true,
-                'message' => 'Daily download limit reached. Do you want to download using wallet balance?',
+                'message' => 'Your daily free-design limit has been reached.',
+                'daily_limit' => $dailyLimit,
+                'downloads_today' => $downloadsToday,
+                'wallet_balance' => $userBalance,
+                'can_use_wallet' => false,
+                'wallet_status' => false,
+            ], 200);
+        }
+
+        $walletChargeRequired = $limitExhausted || $requiresWalletForDesign;
+
+        // Ask for wallet payment when the quota is used or a Free-plan user opens a paid design.
+        if ($walletChargeRequired && ! $useWallet) {
+            return response()->json([
+                'status' => 'limit_reached',
+                'limit_exhausted' => $limitExhausted,
+                'wallet_required' => $requiresWalletForDesign,
+                'message' => $requiresWalletForDesign
+                    ? 'This paid design requires payment from your wallet.'
+                    : 'Daily download limit reached. Do you want to download using wallet balance?',
                 'daily_limit' => $dailyLimit,
                 'downloads_today' => $downloadsToday,
                 'design_price' => $designPrice,
@@ -2063,12 +2090,12 @@ Route::prefix('v1')->group(function () {
 
         $walletDeducted = false;
 
-        // Case B: Limit reached and user agrees to pay from wallet
-        if ($limitExhausted && $useWallet) {
+        // Charge the wallet for paid designs on Free plans or when a plan quota is exhausted.
+        if ($walletChargeRequired && $useWallet) {
             if ($userBalance < $designPrice) {
                 return response()->json([
                     'status' => 'insufficient_balance',
-                    'limit_exhausted' => true,
+                    'limit_exhausted' => $limitExhausted,
                     'message' => "Insufficient wallet balance (₹{$userBalance}). Required amount: ₹{$designPrice}. Please recharge.",
                     'wallet_balance' => $userBalance,
                     'required_amount' => $designPrice,
