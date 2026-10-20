@@ -661,7 +661,7 @@ Route::prefix('v1')->group(function () {
         $userQuery = User::query();
 
         if ($isPhoneLogin) {
-            $userQuery->where('phone', $login)->orWhere('mobile', $login);
+            $userQuery->where('phone', $login);
         } else {
             $userQuery->where('email', $login);
         }
@@ -714,7 +714,6 @@ Route::prefix('v1')->group(function () {
                 'string',
                 'max:20',
                 Rule::unique('users', 'phone'),
-                Rule::unique('users', 'mobile'),
             ],
             'password' => 'required|string|min:6',
             'state' => 'required|string',
