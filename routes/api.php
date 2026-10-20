@@ -65,6 +65,52 @@ Route::prefix('v1')->group(function () {
         return $user instanceof User ? $user : null;
     };
 
+    $createUserWithFreePlan = function (array $attributes): User {
+        return DB::transaction(function () use ($attributes): User {
+            $freePlan = Plan::query()
+                ->where('price', 0)
+                ->where(function ($query) {
+                    $query->where('status', 'active')->orWhere('status', 1);
+                })
+                ->orderBy('id')
+                ->first();
+
+            if (! $freePlan) {
+                return User::create($attributes);
+            }
+
+            $durationDays = max(1, (int) ($freePlan->duration ?? $freePlan->duration_days ?? 1));
+            $startDate = now();
+            $endDate = (clone $startDate)->addDays($durationDays);
+            $dailyDesignLimit = (int) $freePlan->daily_limit_design;
+            $dailyVideoLimit = (int) $freePlan->daily_limit_video;
+
+            $user = User::create([
+                ...$attributes,
+                'plan_id' => (string) $freePlan->id,
+                'daily_download_limit_design' => $dailyDesignLimit,
+                'daily_download_limit_video' => $dailyVideoLimit,
+            ]);
+
+            UserPlanHistory::create([
+                'user_id' => $user->id,
+                'plan_id' => $freePlan->id,
+                'plan_name' => $freePlan->name,
+                'price' => $freePlan->price,
+                'duration_days' => $durationDays,
+                'start_date' => $startDate,
+                'end_date' => $endDate,
+                'status' => 'active',
+                'daily_limit_design' => $dailyDesignLimit,
+                'daily_limit_video' => $dailyVideoLimit,
+                'payment_method' => 'free_trial',
+                'notes' => 'Default free plan assigned on account creation',
+            ]);
+
+            return $user;
+        });
+    };
+
     Route::get('/get_notification', function (Request $request) use ($resolveApiUser) {
         $user = $resolveApiUser($request);
 
@@ -705,7 +751,7 @@ Route::prefix('v1')->group(function () {
     /**
      * User Registration -> returns Bearer Token
      */
-    Route::post('/auth/register', function (Request $request) {
+    Route::post('/auth/register', function (Request $request) use ($createUserWithFreePlan) {
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'email' => ['nullable', 'email', 'max:255', Rule::unique('users', 'email')],
@@ -731,10 +777,6 @@ Route::prefix('v1')->group(function () {
         $validated['phone'] = $validated['mobile'];
         unset($validated['mobile']);
 
-        if (empty($validated['email'])) {
-            $validated['email'] = $validated['phone'].'+'.Str::lower(Str::random(8)).'@designera.shop';
-        }
-
         if ($request->hasFile('profile_photo')) {
             $validated['profile_photo'] = $request->file('profile_photo')->store('users/profile', 'public');
         }
@@ -742,7 +784,7 @@ Route::prefix('v1')->group(function () {
         $validated['password'] = Hash::make($validated['password']);
         $validated['status'] = 1;
 
-        $user = User::create($validated);
+        $user = $createUserWithFreePlan($validated);
         $token = $user->createToken('api_token')->plainTextToken;
 
         return response()->json([
@@ -757,7 +799,7 @@ Route::prefix('v1')->group(function () {
     /**
      * Mobile OTP Login / Quick Login
      */
-    Route::post('/auth/otp-login', function (Request $request) {
+    Route::post('/auth/otp-login', function (Request $request) use ($createUserWithFreePlan) {
         $request->validate([
             'mobile' => 'required|string',
             'otp' => 'nullable|string',
@@ -768,10 +810,10 @@ Route::prefix('v1')->group(function () {
 
         if (! $user) {
             // Auto register if user does not exist
-            $user = User::create([
+            $user = $createUserWithFreePlan([
                 'name' => $request->input('name', 'User '.substr($mobile, -4)),
                 'phone' => $mobile,
-                'email' => $request->input('email', $mobile.'@designera.shop'),
+                'email' => $request->input('email') ?: null,
                 'password' => Hash::make(Str::random(16)),
                 'status' => 1,
             ]);
@@ -1066,7 +1108,7 @@ Route::prefix('v1')->group(function () {
         return response()->json(['status' => 'success', 'data' => $user]);
     });
 
-    Route::post('/users', function (Request $request) {
+    Route::post('/users', function (Request $request) use ($createUserWithFreePlan) {
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|email|unique:users,email',
@@ -1082,7 +1124,7 @@ Route::prefix('v1')->group(function () {
         }
 
         $validated['password'] = Hash::make($request->input('password', 'secret123'));
-        $user = User::create($validated);
+        $user = $createUserWithFreePlan($validated);
 
         return response()->json([
             'status' => 'success',
