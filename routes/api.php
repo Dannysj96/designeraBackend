@@ -1640,24 +1640,8 @@ Route::prefix('v1')->group(function () {
         $tomorrow = Carbon::tomorrow()->toDateString();
 
         $buildDateQuery = function ($targetDate) use ($request) {
-            $specialDayIds = SpecialDay::where(function ($sq) use ($targetDate) {
-                $sq->whereDate('date', $targetDate)
-                    ->orWhereDate('s_date', $targetDate);
-            })->pluck('id')->toArray();
-
             $query = Design::where('status', 1)
-                ->where(function ($q) use ($targetDate, $specialDayIds) {
-                    $q->whereDate('date', $targetDate);
-                    if (! empty($specialDayIds)) {
-                        $q->orWhereIn('special_day', $specialDayIds);
-                    }
-                    $q->orWhere(function ($sub) use ($targetDate) {
-                        $sub->whereNotNull('date')
-                            ->whereNotNull('up_to_days')
-                            ->whereDate('date', '<=', $targetDate)
-                            ->whereRaw('DATE_ADD(date, INTERVAL up_to_days DAY) >= ?', [$targetDate]);
-                    });
-                });
+                ->whereDate('date', $targetDate);
 
             if ($request->filled('category_id')) {
                 $query->where('category_id', $request->input('category_id'));
@@ -1740,23 +1724,7 @@ Route::prefix('v1')->group(function () {
                 ? Carbon::tomorrow()->toDateString()
                 : Carbon::today()->toDateString();
 
-            $specialDayIds = SpecialDay::where(function ($sq) use ($targetDate) {
-                $sq->whereDate('date', $targetDate)
-                    ->orWhereDate('s_date', $targetDate);
-            })->pluck('id')->toArray();
-
-            $query->where(function ($q) use ($targetDate, $specialDayIds) {
-                $q->whereDate('date', $targetDate);
-                if (! empty($specialDayIds)) {
-                    $q->orWhereIn('special_day', $specialDayIds);
-                }
-                $q->orWhere(function ($sub) use ($targetDate) {
-                    $sub->whereNotNull('date')
-                        ->whereNotNull('up_to_days')
-                        ->whereDate('date', '<=', $targetDate)
-                        ->whereRaw('DATE_ADD(date, INTERVAL up_to_days DAY) >= ?', [$targetDate]);
-                });
-            });
+            $query->whereDate('date', $targetDate);
         } elseif ($request->filled('date')) {
             $targetDate = $request->input('date');
             $specialDayIds = SpecialDay::where(function ($sq) use ($targetDate) {
