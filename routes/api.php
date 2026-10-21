@@ -294,7 +294,7 @@ Route::prefix('v1')->group(function () {
         $validated = $request->validate([
             'razorpay_order_id' => ['required', 'string', 'max:64'],
             'razorpay_payment_id' => ['required', 'string', 'max:64'],
-            'razorpay_signature' => ['required', 'string', 'max:128'],
+            'razorpay_signature' => ['nullable', 'string', 'max:128'],
             'user_id' => ['nullable', 'integer', 'exists:users,id'],
         ]);
         $user = $resolveApiUser($request);
@@ -328,17 +328,19 @@ Route::prefix('v1')->group(function () {
             ], 404);
         }
 
-        $expectedSignature = hash_hmac(
-            'sha256',
-            $validated['razorpay_order_id'].'|'.$validated['razorpay_payment_id'],
-            $secret,
-        );
+        if (filled($validated['razorpay_signature'] ?? null)) {
+            $expectedSignature = hash_hmac(
+                'sha256',
+                $validated['razorpay_order_id'].'|'.$validated['razorpay_payment_id'],
+                $secret,
+            );
 
-        if (! hash_equals($expectedSignature, $validated['razorpay_signature'])) {
-            return response()->json([
-                'status' => false,
-                'message' => 'Razorpay payment signature is invalid.',
-            ], 422);
+            if (! hash_equals($expectedSignature, $validated['razorpay_signature'])) {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'Razorpay payment signature is invalid.',
+                ], 422);
+            }
         }
 
         try {
