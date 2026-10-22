@@ -33,6 +33,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
@@ -168,6 +169,10 @@ Route::prefix('v1')->group(function () {
         $user = $resolveApiUser($request);
 
         if (! $user) {
+            Log::warning('Razorpay wallet order creation rejected: user was not resolved.', [
+                'requested_user_id' => $request->input('user_id'),
+            ]);
+
             return response()->json([
                 'status' => false,
                 'message' => 'Authentication or user_id is required.',
@@ -178,6 +183,10 @@ Route::prefix('v1')->group(function () {
         $secret = config('services.razorpay.secret');
 
         if (! filled($key) || ! filled($secret)) {
+            Log::error('Razorpay wallet order creation blocked: server credentials are missing.', [
+                'user_id' => $user->id,
+            ]);
+
             return response()->json([
                 'status' => false,
                 'message' => 'Razorpay credentials are not configured on the server.',
@@ -234,6 +243,10 @@ Route::prefix('v1')->group(function () {
                 ]);
         } catch (Throwable $exception) {
             report($exception);
+            Log::error('Razorpay wallet order request failed.', [
+                'user_id' => $user->id,
+                'exception' => $exception::class,
+            ]);
 
             return response()->json([
                 'status' => false,
@@ -245,6 +258,13 @@ Route::prefix('v1')->group(function () {
         $razorpayOrderId = is_array($gatewayOrder) ? ($gatewayOrder['id'] ?? null) : null;
 
         if (! $gatewayResponse->successful() || ! is_string($razorpayOrderId)) {
+            Log::warning('Razorpay wallet order was rejected.', [
+                'user_id' => $user->id,
+                'http_status' => $gatewayResponse->status(),
+                'razorpay_error_code' => $gatewayResponse->json('error.code'),
+                'razorpay_error_reason' => $gatewayResponse->json('error.reason'),
+            ]);
+
             return response()->json([
                 'status' => false,
                 'message' => $gatewayResponse->json('error.description') ?? 'Razorpay order creation failed.',
@@ -273,7 +293,23 @@ Route::prefix('v1')->group(function () {
             $walletPaymentData['credit_amount'] = number_format($creditAmountPaise / 100, 2, '.', '');
         }
 
-        DB::table('wallet_payments')->insert($walletPaymentData);
+        try {
+            DB::table('wallet_payments')->insert($walletPaymentData);
+        } catch (Throwable $exception) {
+            Log::error('Razorpay order created at gateway but local wallet order could not be saved.', [
+                'user_id' => $user->id,
+                'razorpay_order_id' => $razorpayOrderId,
+                'exception' => $exception::class,
+            ]);
+
+            throw $exception;
+        }
+        Log::info('Razorpay wallet order created.', [
+            'user_id' => $user->id,
+            'razorpay_order_id' => $razorpayOrderId,
+            'payable_amount_paise' => $amountPaise,
+            'wallet_credit_paise' => $creditAmountPaise,
+        ]);
 
         return response()->json([
             'status' => true,
@@ -300,16 +336,34 @@ Route::prefix('v1')->group(function () {
         $user = $resolveApiUser($request);
 
         if (! $user) {
+            Log::warning('Razorpay wallet verification rejected: user was not resolved.', [
+                'razorpay_order_id' => $validated['razorpay_order_id'],
+                'razorpay_payment_id' => $validated['razorpay_payment_id'],
+            ]);
+
             return response()->json([
                 'status' => false,
                 'message' => 'Authentication or user_id is required.',
             ], 401);
         }
 
+        Log::info('Razorpay wallet verification started.', [
+            'user_id' => $user->id,
+            'razorpay_order_id' => $validated['razorpay_order_id'],
+            'razorpay_payment_id' => $validated['razorpay_payment_id'],
+            'signature_present' => filled($validated['razorpay_signature'] ?? null),
+        ]);
+
         $key = config('services.razorpay.key');
         $secret = config('services.razorpay.secret');
 
         if (! filled($key) || ! filled($secret)) {
+            Log::error('Razorpay wallet verification blocked: server credentials are missing.', [
+                'user_id' => $user->id,
+                'razorpay_order_id' => $validated['razorpay_order_id'],
+                'razorpay_payment_id' => $validated['razorpay_payment_id'],
+            ]);
+
             return response()->json([
                 'status' => false,
                 'message' => 'Razorpay credentials are not configured on the server.',
@@ -322,6 +376,12 @@ Route::prefix('v1')->group(function () {
             ->first();
 
         if (! $walletPayment) {
+            Log::warning('Razorpay wallet verification order was not found for user.', [
+                'user_id' => $user->id,
+                'razorpay_order_id' => $validated['razorpay_order_id'],
+                'razorpay_payment_id' => $validated['razorpay_payment_id'],
+            ]);
+
             return response()->json([
                 'status' => false,
                 'message' => 'Wallet payment order was not found for this user.',
@@ -336,6 +396,12 @@ Route::prefix('v1')->group(function () {
             );
 
             if (! hash_equals($expectedSignature, $validated['razorpay_signature'])) {
+                Log::warning('Razorpay wallet verification received an invalid signature.', [
+                    'user_id' => $user->id,
+                    'razorpay_order_id' => $validated['razorpay_order_id'],
+                    'razorpay_payment_id' => $validated['razorpay_payment_id'],
+                ]);
+
                 return response()->json([
                     'status' => false,
                     'message' => 'Razorpay payment signature is invalid.',
@@ -351,6 +417,12 @@ Route::prefix('v1')->group(function () {
                 ->get('https://api.razorpay.com/v1/payments/'.rawurlencode($validated['razorpay_payment_id']));
         } catch (Throwable $exception) {
             report($exception);
+            Log::error('Razorpay payment lookup request failed during wallet verification.', [
+                'user_id' => $user->id,
+                'razorpay_order_id' => $validated['razorpay_order_id'],
+                'razorpay_payment_id' => $validated['razorpay_payment_id'],
+                'exception' => $exception::class,
+            ]);
 
             return response()->json([
                 'status' => false,
@@ -361,13 +433,37 @@ Route::prefix('v1')->group(function () {
         $gatewayPayment = $paymentResponse->json();
 
         if (! $paymentResponse->successful() || ! is_array($gatewayPayment)) {
+            Log::warning('Razorpay payment lookup did not return a payment.', [
+                'user_id' => $user->id,
+                'razorpay_order_id' => $validated['razorpay_order_id'],
+                'razorpay_payment_id' => $validated['razorpay_payment_id'],
+                'http_status' => $paymentResponse->status(),
+                'razorpay_error_code' => $paymentResponse->json('error.code'),
+                'razorpay_error_reason' => $paymentResponse->json('error.reason'),
+            ]);
+
             return response()->json([
                 'status' => false,
                 'message' => 'Razorpay could not find this payment.',
             ], 422);
         }
 
+        Log::info('Razorpay wallet payment status received.', [
+            'user_id' => $user->id,
+            'razorpay_order_id' => $validated['razorpay_order_id'],
+            'razorpay_payment_id' => $validated['razorpay_payment_id'],
+            'payment_status' => $gatewayPayment['status'] ?? 'unknown',
+            'gateway_amount_paise' => $gatewayPayment['amount'] ?? null,
+            'gateway_currency' => $gatewayPayment['currency'] ?? null,
+        ]);
+
         if (($gatewayPayment['status'] ?? null) === 'authorized') {
+            Log::info('Razorpay wallet payment is authorized; requesting capture.', [
+                'user_id' => $user->id,
+                'razorpay_order_id' => $validated['razorpay_order_id'],
+                'razorpay_payment_id' => $validated['razorpay_payment_id'],
+            ]);
+
             try {
                 $captureResponse = Http::withBasicAuth($key, $secret)
                     ->acceptJson()
@@ -380,9 +476,30 @@ Route::prefix('v1')->group(function () {
 
                 if ($captureResponse->successful() && is_array($captureResponse->json())) {
                     $gatewayPayment = $captureResponse->json();
+                    Log::info('Razorpay wallet payment capture response received.', [
+                        'user_id' => $user->id,
+                        'razorpay_order_id' => $validated['razorpay_order_id'],
+                        'razorpay_payment_id' => $validated['razorpay_payment_id'],
+                        'payment_status' => $gatewayPayment['status'] ?? 'unknown',
+                    ]);
+                } else {
+                    Log::warning('Razorpay wallet payment capture request was rejected.', [
+                        'user_id' => $user->id,
+                        'razorpay_order_id' => $validated['razorpay_order_id'],
+                        'razorpay_payment_id' => $validated['razorpay_payment_id'],
+                        'http_status' => $captureResponse->status(),
+                        'razorpay_error_code' => $captureResponse->json('error.code'),
+                        'razorpay_error_reason' => $captureResponse->json('error.reason'),
+                    ]);
                 }
             } catch (Throwable $exception) {
                 report($exception);
+                Log::error('Razorpay wallet payment capture request failed.', [
+                    'user_id' => $user->id,
+                    'razorpay_order_id' => $validated['razorpay_order_id'],
+                    'razorpay_payment_id' => $validated['razorpay_payment_id'],
+                    'exception' => $exception::class,
+                ]);
             }
         }
 
@@ -390,6 +507,18 @@ Route::prefix('v1')->group(function () {
             || ($gatewayPayment['order_id'] ?? null) !== $walletPayment->razorpay_order_id
             || (int) ($gatewayPayment['amount'] ?? 0) !== (int) round((float) $walletPayment->amount * 100)
             || ($gatewayPayment['currency'] ?? null) !== $walletPayment->currency) {
+            Log::warning('Razorpay wallet payment did not pass captured payment checks.', [
+                'user_id' => $user->id,
+                'razorpay_order_id' => $validated['razorpay_order_id'],
+                'razorpay_payment_id' => $validated['razorpay_payment_id'],
+                'payment_status' => $gatewayPayment['status'] ?? 'unknown',
+                'gateway_order_id' => $gatewayPayment['order_id'] ?? null,
+                'gateway_amount_paise' => $gatewayPayment['amount'] ?? null,
+                'expected_amount_paise' => (int) round((float) $walletPayment->amount * 100),
+                'gateway_currency' => $gatewayPayment['currency'] ?? null,
+                'expected_currency' => $walletPayment->currency,
+            ]);
+
             return response()->json([
                 'status' => false,
                 'message' => 'Razorpay has not confirmed a captured payment for this wallet order.',
@@ -397,68 +526,85 @@ Route::prefix('v1')->group(function () {
             ], 422);
         }
 
-        $result = DB::transaction(function () use ($gatewayPayment, $user, $validated, $walletPayment): array {
-            $lockedPayment = DB::table('wallet_payments')
-                ->where('id', $walletPayment->id)
-                ->lockForUpdate()
-                ->first();
+        try {
+            $result = DB::transaction(function () use ($gatewayPayment, $user, $validated, $walletPayment): array {
+                $lockedPayment = DB::table('wallet_payments')
+                    ->where('id', $walletPayment->id)
+                    ->lockForUpdate()
+                    ->first();
 
-            if ($lockedPayment->status === 'paid') {
-                $balance = (float) DB::table('users')->where('id', $user->id)->value('balance');
+                if ($lockedPayment->status === 'paid') {
+                    $balance = (float) DB::table('users')->where('id', $user->id)->value('balance');
 
-                return [
-                    'credited' => false,
-                    'conflict' => $lockedPayment->razorpay_payment_id !== $validated['razorpay_payment_id'],
-                    'balance' => $balance,
-                ];
-            }
+                    return [
+                        'credited' => false,
+                        'conflict' => $lockedPayment->razorpay_payment_id !== $validated['razorpay_payment_id'],
+                        'balance' => $balance,
+                    ];
+                }
 
-            $lockedUser = DB::table('users')->where('id', $user->id)->lockForUpdate()->first();
-            $storedOrderData = json_decode((string) ($lockedPayment->gateway_order_data ?? ''), true) ?: [];
-            $storedCreditAmount = isset($storedOrderData['credit_amount'])
-                ? (int) $storedOrderData['credit_amount'] / 100
-                : (float) $lockedPayment->amount;
-            $creditedAmount = (float) ($lockedPayment->credit_amount ?? $storedCreditAmount);
-            $newBalance = (float) ($lockedUser->balance ?? 0) + $creditedAmount;
-            DB::table('users')->where('id', $user->id)->update([
-                'balance' => number_format($newBalance, 2, '.', ''),
-                'updated_at' => now(),
-            ]);
+                $lockedUser = DB::table('users')->where('id', $user->id)->lockForUpdate()->first();
+                $storedOrderData = json_decode((string) ($lockedPayment->gateway_order_data ?? ''), true) ?: [];
+                $storedCreditAmount = isset($storedOrderData['credit_amount'])
+                    ? (int) $storedOrderData['credit_amount'] / 100
+                    : (float) $lockedPayment->amount;
+                $creditedAmount = (float) ($lockedPayment->credit_amount ?? $storedCreditAmount);
+                $newBalance = (float) ($lockedUser->balance ?? 0) + $creditedAmount;
+                DB::table('users')->where('id', $user->id)->update([
+                    'balance' => number_format($newBalance, 2, '.', ''),
+                    'updated_at' => now(),
+                ]);
 
-            DB::table('transactions')->insert([
-                'user_id' => (string) $user->id,
-                'amount' => number_format($creditedAmount, 2, '.', ''),
-                'currency' => $lockedPayment->currency,
-                'type' => 'credit',
-                'payment_method' => 'razorpay',
-                'description' => 'Wallet recharge via Razorpay',
-                'payu_data' => json_encode([
-                    'razorpay_order_id' => $validated['razorpay_order_id'],
+                DB::table('transactions')->insert([
+                    'user_id' => (string) $user->id,
+                    'amount' => number_format($creditedAmount, 2, '.', ''),
+                    'currency' => $lockedPayment->currency,
+                    'type' => 'credit',
+                    'payment_method' => 'razorpay',
+                    'description' => 'Wallet recharge via Razorpay',
+                    'payu_data' => json_encode([
+                        'razorpay_order_id' => $validated['razorpay_order_id'],
+                        'razorpay_payment_id' => $validated['razorpay_payment_id'],
+                    ], JSON_THROW_ON_ERROR),
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+
+                DB::table('wallet_payments')->where('id', $lockedPayment->id)->update([
                     'razorpay_payment_id' => $validated['razorpay_payment_id'],
-                ], JSON_THROW_ON_ERROR),
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
+                    'status' => 'paid',
+                    'gateway_payment_data' => json_encode([
+                        'id' => $gatewayPayment['id'],
+                        'order_id' => $gatewayPayment['order_id'],
+                        'status' => $gatewayPayment['status'],
+                        'amount' => $gatewayPayment['amount'],
+                        'currency' => $gatewayPayment['currency'],
+                        'method' => $gatewayPayment['method'] ?? null,
+                    ], JSON_THROW_ON_ERROR),
+                    'verified_at' => now(),
+                    'updated_at' => now(),
+                ]);
 
-            DB::table('wallet_payments')->where('id', $lockedPayment->id)->update([
+                return ['credited' => true, 'conflict' => false, 'balance' => $newBalance];
+            });
+        } catch (Throwable $exception) {
+            Log::error('Razorpay payment was captured but wallet credit transaction failed.', [
+                'user_id' => $user->id,
+                'razorpay_order_id' => $validated['razorpay_order_id'],
                 'razorpay_payment_id' => $validated['razorpay_payment_id'],
-                'status' => 'paid',
-                'gateway_payment_data' => json_encode([
-                    'id' => $gatewayPayment['id'],
-                    'order_id' => $gatewayPayment['order_id'],
-                    'status' => $gatewayPayment['status'],
-                    'amount' => $gatewayPayment['amount'],
-                    'currency' => $gatewayPayment['currency'],
-                    'method' => $gatewayPayment['method'] ?? null,
-                ], JSON_THROW_ON_ERROR),
-                'verified_at' => now(),
-                'updated_at' => now(),
+                'exception' => $exception::class,
             ]);
 
-            return ['credited' => true, 'conflict' => false, 'balance' => $newBalance];
-        });
+            throw $exception;
+        }
 
         if ($result['conflict']) {
+            Log::warning('Razorpay wallet order was already credited by a different payment.', [
+                'user_id' => $user->id,
+                'razorpay_order_id' => $validated['razorpay_order_id'],
+                'razorpay_payment_id' => $validated['razorpay_payment_id'],
+            ]);
+
             return response()->json([
                 'status' => false,
                 'message' => 'This wallet order was already credited against another payment.',
@@ -469,6 +615,14 @@ Route::prefix('v1')->group(function () {
         $storedCreditAmount = isset($storedOrderData['credit_amount'])
             ? (int) $storedOrderData['credit_amount'] / 100
             : (float) $walletPayment->amount;
+
+        Log::info($result['credited'] ? 'Razorpay wallet payment credited.' : 'Razorpay wallet payment was already credited.', [
+            'user_id' => $user->id,
+            'razorpay_order_id' => $validated['razorpay_order_id'],
+            'razorpay_payment_id' => $validated['razorpay_payment_id'],
+            'wallet_credit_amount' => (float) ($walletPayment->credit_amount ?? $storedCreditAmount),
+            'wallet_credited' => $result['credited'],
+        ]);
 
         return response()->json([
             'status' => true,
