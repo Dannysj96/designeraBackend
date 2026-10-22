@@ -88,6 +88,6 @@ class DesignsTable
                     DeleteBulkAction::make(),
                 ]),
             ])
-            ->defaultSort('date');
+            ->defaultSort('date', direction: 'desc');
     }
 }
