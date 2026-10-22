@@ -103,6 +103,14 @@ class CouponListApiTest extends TestCase
         ]);
 
         $this->postJson('/api/v1/razorpay_integration', [
+            'amount' => 49,
+            'user_id' => 1,
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors('amount');
+
+        $this->assertDatabaseCount('wallet_payments', 0);
+
+        $this->postJson('/api/v1/razorpay_integration', [
             'amount' => 100,
             'coupon_code' => 'SAVE20',
             'user_id' => 1,

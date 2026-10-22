@@ -2,13 +2,14 @@
 
 namespace App\Filament\Resources\ParentCategories\Tables;
 
+use App\Models\ParentCategory;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Tables\Columns\TextColumn;
-use Filament\Tables\Columns\TextInputColumn;
 use Filament\Tables\Table;
+use Illuminate\Support\Facades\DB;
 
 class ParentCategoriesTable
 {
@@ -16,9 +17,8 @@ class ParentCategoriesTable
     {
         return $table
             ->columns([
-                TextInputColumn::make('sequence')
+                TextColumn::make('sequence')
                     ->label('Sequence')
-                    ->rules(['numeric', 'min:0'])
                     ->sortable(),
                 TextColumn::make('name')
                     ->label('Title')
@@ -35,6 +35,15 @@ class ParentCategoriesTable
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->reorderable('sequence')
+            ->afterReordering(function (array $order): void {
+                DB::transaction(function () use ($order): void {
+                    foreach ($order as $index => $recordKey) {
+                        ParentCategory::query()
+                            ->whereKey($recordKey)
+                            ->update(['sequence' => $index + 1]);
+                    }
+                });
+            })
             ->defaultSort(fn ($query) => $query->orderByRaw('CASE WHEN sequence > 0 THEN 0 ELSE 1 END')->orderBy('sequence', 'asc')->latest('id'))
             ->filters([
                 //

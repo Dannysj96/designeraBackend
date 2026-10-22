@@ -72,6 +72,11 @@ class User extends Authenticatable implements FilamentUser
         return $this->belongsTo(Party::class, 'party', 'id');
     }
 
+    public function languageRelation(): BelongsTo
+    {
+        return $this->belongsTo(Language::class, 'language', 'id');
+    }
+
     /**
      * Mobile / Phone accessor & mutator
      */

@@ -161,7 +161,7 @@ Route::prefix('v1')->group(function () {
 
     Route::post('/razorpay_integration', function (Request $request) use ($resolveApiUser) {
         $validated = $request->validate([
-            'amount' => ['required', 'numeric', 'min:1', 'max:100000'],
+            'amount' => ['required', 'numeric', 'min:50', 'max:100000'],
             'coupon_code' => ['nullable', 'string', 'max:20'],
             'order_id' => ['nullable', 'string', 'max:40'],
             'user_id' => ['nullable', 'integer', 'exists:users,id'],

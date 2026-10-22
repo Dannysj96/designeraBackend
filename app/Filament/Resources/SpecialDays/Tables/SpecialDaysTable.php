@@ -2,7 +2,9 @@
 
 namespace App\Filament\Resources\SpecialDays\Tables;
 
+use App\Filament\Resources\SpecialDays\Pages\ListSpecialDays;
 use App\Helpers\FileManager;
+use App\Models\SpecialDay;
 use DateTimeImmutable;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
@@ -10,9 +12,9 @@ use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Columns\TextColumn;
-use Filament\Tables\Columns\TextInputColumn;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\DB;
 
 class SpecialDaysTable
 {
@@ -20,10 +22,9 @@ class SpecialDaysTable
     {
         return $table
             ->columns([
-                TextInputColumn::make('sequence')
+                TextColumn::make('sequence')
                     ->label('Sequence')
-                    ->rules(['numeric', 'min:0'])
-                    ->sortable(),
+                    ->rowIndex(),
                 ImageColumn::make('image')
                     ->label('Image')
                     ->state(fn ($record) => filled($record->image) ? FileManager::getThumbnailUrl($record->image) : null)
@@ -48,8 +49,28 @@ class SpecialDaysTable
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->splitSearchTerms(false)
-            ->reorderable('sequence')
-            ->defaultSort(fn ($query) => $query->orderByRaw('CASE WHEN sequence > 0 THEN 0 ELSE 1 END')->orderBy('sequence', 'asc')->latest('date')->latest('id'))
+            ->reorderable(
+                'sequence',
+                condition: fn (ListSpecialDays $livewire): bool => in_array($livewire->activeTab, ['today', 'tomorrow'], true)
+                    && (int) $livewire->getTablePage() === 1,
+            )
+            ->paginatedWhileReordering()
+            ->paginationPageOptions([10])
+            ->afterReordering(function (array $order): void {
+                DB::transaction(function () use ($order): void {
+                    foreach ($order as $index => $recordKey) {
+                        SpecialDay::query()
+                            ->whereKey($recordKey)
+                            ->update(['sequence' => $index + 1]);
+                    }
+                });
+            })
+            ->defaultSort(fn (Builder $query, ListSpecialDays $livewire): Builder => $livewire->activeTab === 'all'
+                ? $query->orderByDesc('date')->orderByDesc('id')
+                : $query->orderByRaw('CASE WHEN sequence > 0 THEN 0 ELSE 1 END')
+                    ->orderBy('sequence')
+                    ->latest('date')
+                    ->latest('id'))
             ->filters([
                 //
             ])

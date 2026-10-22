@@ -80,6 +80,7 @@ class VideosTable
                 BulkActionGroup::make([
                     DeleteBulkAction::make(),
                 ]),
-            ]);
+            ])
+            ->defaultSort('date');
     }
 }
