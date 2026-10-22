@@ -102,6 +102,7 @@ class DesignMaskingsTable
                 BulkActionGroup::make([
                     DeleteBulkAction::make(),
                 ]),
-            ]);
+            ])
+            ->defaultSort('created_at', direction: 'desc');
     }
 }

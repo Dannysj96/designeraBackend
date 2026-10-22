@@ -557,6 +557,34 @@
             display: flex;
             flex-direction: column;
         }
+        .wallet-history-modal-content {
+            width: min(1400px, 96vw);
+            max-width: 1400px;
+            max-height: 90vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .wallet-history-modal-body {
+            overflow: auto;
+            min-height: 260px;
+            max-height: calc(90vh - 145px);
+            padding: 20px 24px;
+        }
+        .wallet-history-table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 680px;
+        }
+        @media (max-width: 640px) {
+            .wallet-history-modal-content {
+                width: 100%;
+                max-height: 94vh;
+            }
+            .wallet-history-modal-body {
+                padding: 14px;
+                max-height: calc(94vh - 135px);
+            }
+        }
         .dark .custom-modal-content {
             background: #18181b;
             border-color: #27272a;
@@ -789,6 +817,9 @@
                                 $activePlan = $user->activePlanHistory;
                                 $currentPlanName = $activePlan ? $activePlan->plan_name : ($user->plan?->name ?? ($user->plan_id ? 'Plan #' . $user->plan_id : '24 hrs Free Trial'));
                                 $remDays = $activePlan ? $activePlan->remaining_days : null;
+                                $languageName = $user->languageRelation?->english_name
+                                    ?? $user->languageRelation?->name
+                                    ?? (filled($user->language) && ! is_numeric($user->language) ? $user->language : null);
                             @endphp
                             <tr id="user-row-{{ $user->id }}">
                                 <td style="font-weight: 600; color: #a1a1aa; text-align: center;">
@@ -815,9 +846,11 @@
                                             <div style="font-size: 11px; color: #71717a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 3px;" title="{{ $user->email }}">
                                                 {{ $user->email }}
                                             </div>
-                                            <div style="font-size: 10px; margin-top: 3px;">
-                                                <span class="badge-lang">{{ $user->language ?? 'en' }}</span>
-                                            </div>
+                                            @if ($languageName)
+                                                <div style="font-size: 10px; margin-top: 3px;">
+                                                    <span class="badge-lang">{{ $languageName }}</span>
+                                                </div>
+                                            @endif
                                         </div>
                                     </div>
                                 </td>
@@ -847,16 +880,21 @@
                                     </div>
                                 </td>
                                 <td>
-                                    @if ($user->party)
+                                    @php
+                                        $partyName = $user->partyRelation?->name ?? (filled($user->party) && ! is_numeric($user->party) ? $user->party : null);
+                                        $cityName = $user->cityLocation?->name ?? (filled($user->city) && ! is_numeric($user->city) ? $user->city : null);
+                                        $stateName = $user->stateLocation?->name ?? (filled($user->state) && ! is_numeric($user->state) ? $user->state : null);
+                                    @endphp
+                                    @if ($partyName)
                                         <div>
-                                            <span class="badge-party">{{ $user->party }}</span>
+                                            <span class="badge-party">{{ $partyName }}</span>
                                         </div>
                                     @endif
                                     <div style="font-size: 11px; color: #71717a; margin-top: 2px;">
-                                        @if ($user->city || $user->state)
-                                            {{ $user->city ?? '' }}{{ $user->city && $user->state ? ', ' : '' }}{{ $user->state ?? '' }}
+                                        @if ($cityName || $stateName)
+                                            {{ $cityName ?? '' }}{{ $cityName && $stateName ? ', ' : '' }}{{ $stateName ?? '' }}
                                         @endif
-                                        @if (($user->city || $user->state) && ($user->designation_1 || $user->designation_2)) &bull; @endif
+                                        @if (($cityName || $stateName) && ($user->designation_1 || $user->designation_2)) &bull; @endif
                                         {{ $user->designation_1 ?? $user->designation_2 ?? '' }}
                                     </div>
                                 </td>
@@ -1084,39 +1122,36 @@
 
     {{-- MODAL 3: WALLET HISTORY --}}
     <div id="walletHistoryModal" class="custom-modal-overlay" wire:ignore.self style="display: none;">
-        <div class="custom-modal-content">
+        <div class="custom-modal-content wallet-history-modal-content">
             <div class="modal-header">
                 <div style="display: flex; align-items: center; gap: 8px;">
                     <div>
-                        <h3 id="whModalUserName" style="font-size: 14px; font-weight: 700; color: #09090b; margin: 0;" class="dark:text-white">Wallet History</h3>
-                        <p id="whModalBalance" style="font-size: 11px; color: #52525b; margin: 0; font-weight: 600;">Current Balance: ₹0.00</p>
+                        <h3 id="whModalUserName" style="font-size: 17px; font-weight: 700; color: #09090b; margin: 0;" class="dark:text-white">Wallet History</h3>
+                        <p id="whModalBalance" style="font-size: 13px; color: #52525b; margin: 4px 0 0; font-weight: 600;">Current Balance: ₹0.00</p>
                     </div>
                 </div>
                 <button type="button" onclick="closeModal('walletHistoryModal')" style="background: transparent; border: none; font-size: 18px; color: #a1a1aa; cursor: pointer;">&times;</button>
             </div>
-            <div class="modal-body space-y-2">
-                <div style="font-size: 11px; font-weight: 600; color: #71717a; text-transform: uppercase;">Recent Transactions</div>
-                <div style="border: 1px solid #e4e4e7; border-radius: 8px; overflow: hidden; font-size: 12px;" class="dark:border-zinc-800">
-                    <div style="display: flex; justify-content: space-between; padding: 9px 12px; border-bottom: 1px solid #f4f4f5; background: #ffffff;" class="dark:bg-zinc-900 dark:border-zinc-800">
-                        <div>
-                            <div style="font-weight: 600; color: #09090b;" class="dark:text-white">Admin Wallet Credit</div>
-                            <div style="font-size: 10.5px; color: #71717a;">Opening Balance Deposit</div>
-                        </div>
-                        <div style="text-align: right;">
-                            <span class="text-strong">+₹500.00</span>
-                            <div style="font-size: 10px; color: #a1a1aa;">Completed</div>
-                        </div>
-                    </div>
-                    <div style="display: flex; justify-content: space-between; padding: 9px 12px; background: #ffffff;" class="dark:bg-zinc-900">
-                        <div>
-                            <div style="font-weight: 600; color: #09090b;" class="dark:text-white">Plan Purchase</div>
-                            <div style="font-size: 10.5px; color: #71717a;">Basic Plan Activation</div>
-                        </div>
-                        <div style="text-align: right;">
-                            <span class="text-muted" style="font-weight: 700;">-₹199.00</span>
-                            <div style="font-size: 10px; color: #a1a1aa;">Completed</div>
-                        </div>
-                    </div>
+            <div class="wallet-history-modal-body">
+                <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 14px;">
+                    <div style="font-size: 12px; font-weight: 700; color: #71717a; text-transform: uppercase;">Wallet Transactions</div>
+                    <div id="whTransactionCount" style="font-size: 12px; color: #71717a;">Loading history…</div>
+                </div>
+                <div id="whLoadingState" style="text-align: center; padding: 48px 16px; color: #71717a;">Loading wallet history…</div>
+                <div id="whEmptyState" style="display: none; text-align: center; padding: 48px 16px; color: #71717a; border: 1px dashed #d4d4d8; border-radius: 10px;">No wallet transactions found.</div>
+                <div id="whTableWrapper" style="display: none; overflow: auto; border: 1px solid #e4e4e7; border-radius: 10px;" class="dark:border-zinc-800">
+                    <table class="wallet-history-table" style="font-size: 13px;">
+                        <thead style="background: #fafafa;" class="dark:bg-zinc-900">
+                            <tr>
+                                <th style="padding: 12px 16px; text-align: left; color: #71717a; font-size: 11px; text-transform: uppercase;">Date</th>
+                                <th style="padding: 12px 16px; text-align: left; color: #71717a; font-size: 11px; text-transform: uppercase;">Description</th>
+                                <th style="padding: 12px 16px; text-align: left; color: #71717a; font-size: 11px; text-transform: uppercase;">Method</th>
+                                <th style="padding: 12px 16px; text-align: right; color: #71717a; font-size: 11px; text-transform: uppercase;">Amount</th>
+                                <th style="padding: 12px 16px; text-align: center; color: #71717a; font-size: 11px; text-transform: uppercase;">Type</th>
+                            </tr>
+                        </thead>
+                        <tbody id="whTableBody" class="divide-y divide-zinc-100 dark:divide-zinc-800"></tbody>
+                    </table>
                 </div>
             </div>
             <div class="modal-footer">
@@ -1435,8 +1470,64 @@
             closeAllDropdowns();
             document.getElementById('whModalUserName').innerText = userName + ' - Wallet';
             document.getElementById('whModalBalance').innerText = 'Current Balance: ₹' + parseFloat(balance).toFixed(2);
+            document.getElementById('whTransactionCount').innerText = 'Loading history…';
+            document.getElementById('whLoadingState').style.display = 'block';
+            document.getElementById('whEmptyState').style.display = 'none';
+            document.getElementById('whTableWrapper').style.display = 'none';
             document.getElementById('walletHistoryModal').style.display = 'flex';
+            @this.loadWalletHistory(userId);
         }
+
+        window.addEventListener('open-wallet-history-modal', function (event) {
+            const data = event.detail ? (event.detail[0] || event.detail) : {};
+            const transactions = data.transactions || [];
+            const loading = document.getElementById('whLoadingState');
+            const empty = document.getElementById('whEmptyState');
+            const tableWrapper = document.getElementById('whTableWrapper');
+            const tbody = document.getElementById('whTableBody');
+
+            document.getElementById('whModalUserName').innerText = (data.userName || 'User') + ' - Wallet History';
+            document.getElementById('whModalBalance').innerText = 'Current Balance: ₹' + parseFloat(data.balance || 0).toFixed(2);
+            document.getElementById('whTransactionCount').innerText = transactions.length + (transactions.length === 100 ? ' latest transactions' : ' transactions');
+            loading.style.display = 'none';
+            tbody.replaceChildren();
+
+            if (transactions.length === 0) {
+                empty.style.display = 'block';
+                tableWrapper.style.display = 'none';
+                return;
+            }
+
+            empty.style.display = 'none';
+            tableWrapper.style.display = 'block';
+
+            transactions.forEach(function (transaction) {
+                const type = String(transaction.type || '').toLowerCase();
+                const rawAmount = Number(transaction.amount || 0);
+                const isDebit = type === 'debit' || rawAmount < 0;
+                const currencyLabel = transaction.currency === 'INR' ? '₹' : (transaction.currency || 'INR') + ' ';
+                const amount = document.createElement('td');
+                amount.style.cssText = 'padding: 13px 16px; text-align: right; font-weight: 700; white-space: nowrap;';
+                amount.style.color = isDebit ? '#dc2626' : '#059669';
+                amount.textContent = (isDebit ? '−' : '+') + currencyLabel + Math.abs(rawAmount).toFixed(2);
+
+                const row = document.createElement('tr');
+                row.className = 'dark:bg-zinc-900';
+                [transaction.created_at || '—', transaction.description || 'Wallet transaction', transaction.payment_method || '—'].forEach(function (value) {
+                    const cell = document.createElement('td');
+                    cell.style.cssText = 'padding: 13px 16px; border-top: 1px solid #e4e4e7; vertical-align: top;';
+                    cell.textContent = value;
+                    row.appendChild(cell);
+                });
+                row.appendChild(amount);
+
+                const typeCell = document.createElement('td');
+                typeCell.style.cssText = 'padding: 13px 16px; border-top: 1px solid #e4e4e7; text-align: center;';
+                typeCell.textContent = isDebit ? 'Debit' : 'Credit';
+                row.appendChild(typeCell);
+                tbody.appendChild(row);
+            });
+        });
 
         // 4. Add Money
         function openAddMoneyModal(userId, userName, balance) {

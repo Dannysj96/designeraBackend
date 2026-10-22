@@ -11,6 +11,13 @@ class ListParentCategories extends ListRecords
 {
     protected static string $resource = ParentCategoryResource::class;
 
+    public function mount(): void
+    {
+        parent::mount();
+
+        $this->isTableReordering = true;
+    }
+
     public function getMaxContentWidth(): Width|string|null
     {
         return Width::Full;

@@ -87,6 +87,7 @@ class DesignsTable
                 BulkActionGroup::make([
                     DeleteBulkAction::make(),
                 ]),
-            ]);
+            ])
+            ->defaultSort('date');
     }
 }
