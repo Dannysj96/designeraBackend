@@ -101,12 +101,10 @@ class DesignForm
                             ->columnSpanFull(),
                     ]),
 
-                Section::make('Location & Party')
+                Section::make('Party')
                     ->columnSpanFull()
                     ->columns(2)
                     ->components([
-                        LocationHelper::stateSelect(),
-                        LocationHelper::citySelect(),
                         LocationHelper::partySelect(),
                     ]),
 

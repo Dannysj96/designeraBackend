@@ -8,8 +8,6 @@ use App\Models\Category;
 use App\Models\ParentCategory;
 use App\Models\SubCategory;
 use Filament\Forms\Components\Checkbox;
-use Filament\Forms\Components\CheckboxList;
-use Filament\Forms\Components\ColorPicker;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Radio;
@@ -110,7 +108,7 @@ class DesignMaskingForm
                             ->searchable()
                             ->preload()
                             ->live()
-                            ->afterStateUpdated(fn($set) => $set('sub_category_id', null))
+                            ->afterStateUpdated(fn ($set) => $set('sub_category_id', null))
                             ->native(false),
 
                         Select::make('sub_category_id')
@@ -165,7 +163,6 @@ class DesignMaskingForm
                     ->columnSpanFull()
                     ->columns(2)
                     ->components([
-                        LocationHelper::stateSelect(),
                         LocationHelper::citySelect(),
 
                         // Select::make('display_to_user')
@@ -194,7 +191,6 @@ class DesignMaskingForm
                         TextInput::make('up_to_days')
                             ->label('Up To Days')
                             ->placeholder('Up To Days..'),
-
 
                         Radio::make('show_in_slider')
                             ->label('Show In Slider ?')

@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Videos\Tables;
 
 use App\Helpers\FileManager;
+use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
@@ -11,6 +12,7 @@ use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
+use Illuminate\Support\HtmlString;
 
 class VideosTable
 {
@@ -23,7 +25,19 @@ class VideosTable
                     ->state(fn ($record) => filled($record->thumbnail)
                         ? FileManager::getThumbnailUrl($record->thumbnail)
                         : (filled($record->video) ? FileManager::getThumbnailUrl($record->video) : null))
-                    ->square(),
+                    ->square()
+                    ->action(
+                        Action::make('previewImage')
+                            ->modalHeading('Video Preview')
+                            ->modalContent(fn ($record) => new HtmlString(
+                                '<img src="'.e(filled($record->thumbnail)
+                                    ? FileManager::mediaUrl($record->thumbnail)
+                                    : FileManager::getThumbnailUrl($record->video)).'" style="display:block; max-width:min(720px, 82vw); max-height:78vh; width:auto; height:auto; object-fit:contain; margin:12px auto;">'
+                            ))
+                            ->modalSubmitAction(false)
+                            ->modalCancelActionLabel('Close')
+                            ->modalWidth('2xl')
+                    ),
                 TextColumn::make('price')
                     ->label('Price')
                     ->money('INR')
