@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\DesignMaskings\Tables;
 
 use App\Helpers\FileManager;
+use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
@@ -11,6 +12,7 @@ use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
+use Illuminate\Support\HtmlString;
 
 class DesignMaskingsTable
 {
@@ -21,7 +23,17 @@ class DesignMaskingsTable
                 ImageColumn::make('design')
                     ->label('Design Image')
                     ->state(fn ($record) => filled($record->design) ? FileManager::getThumbnailUrl($record->design) : null)
-                    ->square(),
+                    ->square()
+                    ->action(
+                        Action::make('previewImage')
+                            ->modalHeading('Design Masking Preview')
+                            ->modalContent(fn ($record) => new HtmlString(
+                                '<img src="'.e(FileManager::mediaUrl($record->design)).'" style="display:block; max-width:min(720px, 82vw); max-height:78vh; width:auto; height:auto; object-fit:contain; margin:12px auto;">'
+                            ))
+                            ->modalSubmitAction(false)
+                            ->modalCancelActionLabel('Close')
+                            ->modalWidth('2xl')
+                    ),
                 TextColumn::make('price')
                     ->label('Price')
                     ->money('INR')
@@ -69,14 +81,6 @@ class DesignMaskingsTable
                     ->placeholder('N/A')
                     ->searchable()
                     ->sortable(),
-                TextColumn::make('plan')
-                    ->label('Plan')
-                    ->searchable()
-                    ->toggleable(),
-                TextColumn::make('state')
-                    ->label('State')
-                    ->searchable()
-                    ->toggleable(),
                 TextColumn::make('date')
                     ->label('Date')
                     ->date()
