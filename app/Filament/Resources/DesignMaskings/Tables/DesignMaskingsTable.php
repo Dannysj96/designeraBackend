@@ -12,6 +12,8 @@ use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\HtmlString;
 
 class DesignMaskingsTable
@@ -69,21 +71,37 @@ class DesignMaskingsTable
                 TextColumn::make('parentCategory.title')
                     ->label('Parent Category')
                     ->placeholder('N/A')
-                    ->searchable()
+                    ->searchable(query: fn (Builder $query, string $search): Builder => self::applyRelatedNameSearch(
+                        $query,
+                        'parentCategory',
+                        'parent_category',
+                        $search,
+                    ))
                     ->sortable(),
                 TextColumn::make('category.title')
                     ->label('Category')
                     ->placeholder('N/A')
-                    ->searchable()
+                    ->searchable(query: fn (Builder $query, string $search): Builder => self::applyRelatedNameSearch(
+                        $query,
+                        'category',
+                        'category',
+                        $search,
+                    ))
                     ->sortable(),
                 TextColumn::make('subCategory.title')
                     ->label('Sub Category')
                     ->placeholder('N/A')
-                    ->searchable()
+                    ->searchable(query: fn (Builder $query, string $search): Builder => self::applyRelatedNameSearch(
+                        $query,
+                        'subCategory',
+                        'sub_categories',
+                        $search,
+                    ))
                     ->sortable(),
                 TextColumn::make('date')
                     ->label('Date')
                     ->date()
+                    ->searchable(query: fn (Builder $query, string $search): Builder => self::applyDateSearch($query, $search))
                     ->sortable()
                     ->toggleable(),
                 IconColumn::make('only_for_today')
@@ -108,5 +126,44 @@ class DesignMaskingsTable
                 ]),
             ])
             ->defaultSort('created_at', direction: 'desc');
+    }
+
+    private static function applyRelatedNameSearch(
+        Builder $query,
+        string $relationName,
+        string $tableName,
+        string $search,
+    ): Builder {
+        $columnName = Schema::hasColumn($tableName, 'name') ? 'name' : 'title';
+
+        return $query->whereHas(
+            $relationName,
+            fn (Builder $relatedQuery): Builder => $relatedQuery->where($columnName, 'like', "%{$search}%"),
+        );
+    }
+
+    private static function applyDateSearch(Builder $query, string $search): Builder
+    {
+        $search = trim($search);
+        $dateFormats = ['Y-m-d', 'M j, Y', 'F j, Y', 'm/d/Y', 'd/m/Y'];
+        $normalizedDate = null;
+
+        foreach ($dateFormats as $dateFormat) {
+            $date = \DateTimeImmutable::createFromFormat('!'.$dateFormat, $search);
+            $errors = \DateTimeImmutable::getLastErrors();
+
+            if ($date !== false && ($errors === false || ($errors['warning_count'] === 0 && $errors['error_count'] === 0))) {
+                $normalizedDate = $date->format('Y-m-d');
+                break;
+            }
+        }
+
+        return $query->where(function (Builder $dateQuery) use ($search, $normalizedDate): void {
+            $dateQuery->where('date', 'like', "%{$search}%");
+
+            if ($normalizedDate !== null) {
+                $dateQuery->orWhereDate('date', $normalizedDate);
+            }
+        });
     }
 }
