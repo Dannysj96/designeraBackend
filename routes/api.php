@@ -1682,8 +1682,8 @@ Route::prefix('v1')->group(function () {
         }
 
         $limit = min((int) $request->input('limit', 50), 200);
-        $days = $query->orderByRaw('CASE WHEN sequence > 0 THEN sequence ELSE 999999 END ASC')
-            ->orderBy('is_priority', 'desc')
+        $days = $query->orderByRaw('CASE WHEN sequence > 0 THEN 0 ELSE 1 END')
+            ->orderBy('sequence')
             ->latest('date')
             ->latest('id')
             ->paginate($limit);
@@ -1787,17 +1787,53 @@ Route::prefix('v1')->group(function () {
     // 9. Designs API (Includes Today & Tomorrow Filter)
     // ==========================================
 
+    $specialDaySequenceForDate = static function (string $targetDate, string $mediaTable) {
+        $target = Carbon::parse($targetDate);
+        $linkedSpecialDayName = SpecialDay::query()
+            ->select('name')
+            ->whereColumn('special_days.id', "{$mediaTable}.special_day")
+            ->limit(1);
+        $linkedSpecialDayEnglishName = SpecialDay::query()
+            ->select('eng_name')
+            ->whereColumn('special_days.id', "{$mediaTable}.special_day")
+            ->limit(1);
+
+        return SpecialDay::query()
+            ->select('sequence')
+            ->where('status', 1)
+            ->whereNotNull('name')
+            ->where('name', '!=', '')
+            ->where(function ($query) use ($linkedSpecialDayName, $linkedSpecialDayEnglishName): void {
+                $query->whereIn('name', $linkedSpecialDayName)
+                    ->orWhereIn('eng_name', $linkedSpecialDayEnglishName);
+            })
+            ->where(function ($query) use ($target): void {
+                $query->whereDate('date', $target->toDateString())
+                    ->orWhereDate('s_date', $target->toDateString())
+                    ->orWhere(function ($annualDate) use ($target): void {
+                        $annualDate->whereMonth('date', $target->month)
+                            ->whereDay('date', $target->day);
+                    });
+            })
+            ->orderByRaw('CASE WHEN sequence > 0 THEN sequence ELSE 999999 END')
+            ->orderByDesc('date')
+            ->orderByDesc('id')
+            ->limit(1);
+    };
+
     /**
      * Dedicated Today & Tomorrow Feed API:
      * Returns both Today and Tomorrow designs grouped with date metadata.
      */
-    Route::get('/designs/today-tomorrow', function (Request $request) {
+    Route::get('/designs/today-tomorrow', function (Request $request) use ($specialDaySequenceForDate) {
         $today = Carbon::today()->toDateString();
         $tomorrow = Carbon::tomorrow()->toDateString();
 
-        $buildDateQuery = function ($targetDate) use ($request) {
+        $buildDateQuery = function ($targetDate) use ($request, $specialDaySequenceForDate) {
             $query = Design::where('status', 1)
-                ->whereDate('date', $targetDate);
+                ->whereDate('date', $targetDate)
+                ->select('designs.*')
+                ->addSelect(['special_day_sequence' => $specialDaySequenceForDate($targetDate, 'designs')]);
 
             if ($request->filled('category_id')) {
                 $query->where('category_id', $request->input('category_id'));
@@ -1825,7 +1861,11 @@ Route::prefix('v1')->group(function () {
                 $query->with(['category', 'parentCategory', 'subCategory']);
             }
 
-            return $query->latest()->get();
+            return $query
+                ->orderByRaw('CASE WHEN special_day_sequence > 0 THEN 0 ELSE 1 END')
+                ->orderBy('special_day_sequence')
+                ->latest('designs.created_at')
+                ->get();
         };
 
         $todayDesigns = $buildDateQuery($today)->map(function (Design $item) {
@@ -1870,8 +1910,9 @@ Route::prefix('v1')->group(function () {
     /**
      * General Designs API (supports ?day=today, ?day=tomorrow, or ?date=YYYY-MM-DD)
      */
-    Route::get('/designs', function (Request $request) {
+    Route::get('/designs', function (Request $request) use ($specialDaySequenceForDate) {
         $query = Design::where('status', 1);
+        $sequenceTargetDate = null;
 
         // Date / Day Filters (Today & Tomorrow)
         if ($request->filled('day')) {
@@ -1881,8 +1922,10 @@ Route::prefix('v1')->group(function () {
                 : Carbon::today()->toDateString();
 
             $query->whereDate('date', $targetDate);
+            $sequenceTargetDate = $targetDate;
         } elseif ($request->filled('date')) {
             $targetDate = $request->input('date');
+            $sequenceTargetDate = Carbon::parse($targetDate)->toDateString();
             $specialDayIds = SpecialDay::where(function ($sq) use ($targetDate) {
                 $sq->whereDate('date', $targetDate)
                     ->orWhereDate('s_date', $targetDate);
@@ -1935,7 +1978,18 @@ Route::prefix('v1')->group(function () {
         }
 
         $limit = min((int) $request->input('limit', 20), 100);
-        $designs = $query->latest()->paginate($limit);
+        $specialDaySequence = $sequenceTargetDate !== null
+            ? $specialDaySequenceForDate($sequenceTargetDate, 'designs')
+            : SpecialDay::select('sequence')
+                ->whereColumn('special_days.id', 'designs.special_day')
+                ->limit(1);
+        $designs = $query
+            ->select('designs.*')
+            ->addSelect(['special_day_sequence' => $specialDaySequence])
+            ->orderByRaw('CASE WHEN special_day_sequence > 0 THEN 0 ELSE 1 END')
+            ->orderBy('special_day_sequence')
+            ->latest('designs.created_at')
+            ->paginate($limit);
 
         // Add day_type tag for each design dynamically based on date
         $todayStr = Carbon::today()->toDateString();
@@ -2394,8 +2448,24 @@ Route::prefix('v1')->group(function () {
     // ==========================================
     // 11. Videos API
     // ==========================================
-    Route::get('/videos', function (Request $request) {
-        $query = Video::with('specialDay')->where('status', 1);
+    Route::get('/videos', function (Request $request) use ($specialDaySequenceForDate) {
+        $sequenceTargetDate = $request->filled('date')
+            ? Carbon::parse($request->input('date'))->toDateString()
+            : ($request->filled('day')
+                ? (strtolower($request->input('day')) === 'tomorrow'
+                    ? Carbon::tomorrow()->toDateString()
+                    : Carbon::today()->toDateString())
+                : null);
+        $query = Video::with('specialDay')
+            ->where('status', 1)
+            ->select('videos.*')
+            ->addSelect([
+                'special_day_sequence' => $sequenceTargetDate !== null
+                    ? $specialDaySequenceForDate($sequenceTargetDate, 'videos')
+                    : SpecialDay::select('sequence')
+                        ->whereColumn('special_days.id', 'videos.special_day')
+                        ->limit(1),
+            ]);
 
         if ($request->filled('day') || $request->filled('date')) {
             $dayParam = strtolower($request->input('day', 'today'));
@@ -2451,7 +2521,11 @@ Route::prefix('v1')->group(function () {
         }
 
         $limit = min((int) $request->input('limit', 20), 100);
-        $videos = $query->latest()->paginate($limit);
+        $videos = $query
+            ->orderByRaw('CASE WHEN special_day_sequence > 0 THEN 0 ELSE 1 END')
+            ->orderBy('special_day_sequence')
+            ->latest('videos.created_at')
+            ->paginate($limit);
         $today = Carbon::today()->toDateString();
         $tomorrow = Carbon::tomorrow()->toDateString();
         $requestedDay = strtolower((string) $request->input('day', ''));
