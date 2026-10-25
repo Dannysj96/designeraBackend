@@ -1789,32 +1789,42 @@ Route::prefix('v1')->group(function () {
 
     $specialDaySequenceForDate = static function (string $targetDate, string $mediaTable) {
         $target = Carbon::parse($targetDate);
-        $linkedSpecialDayName = SpecialDay::query()
-            ->select('name')
-            ->whereColumn('special_days.id', "{$mediaTable}.special_day")
-            ->limit(1);
-        $linkedSpecialDayEnglishName = SpecialDay::query()
-            ->select('eng_name')
-            ->whereColumn('special_days.id', "{$mediaTable}.special_day")
-            ->limit(1);
+        $specialDaysTable = (new SpecialDay)->getTable();
 
-        return SpecialDay::query()
+        if (! Schema::hasTable($specialDaysTable)
+            || ! Schema::hasColumn($specialDaysTable, 'sequence')
+            || ! Schema::hasColumn($specialDaysTable, 'date')
+            || ! Schema::hasColumn($mediaTable, 'special_day')) {
+            return DB::query()->selectRaw('NULL');
+        }
+
+        $hasAlternateDate = Schema::hasColumn($specialDaysTable, 's_date');
+        $hasStatus = Schema::hasColumn($specialDaysTable, 'status');
+        $hasImageStatus = Schema::hasColumn($specialDaysTable, 'img_status');
+
+        $query = SpecialDay::query()
             ->select('sequence')
-            ->where('status', 1)
-            ->whereNotNull('name')
-            ->where('name', '!=', '')
-            ->where(function ($query) use ($linkedSpecialDayName, $linkedSpecialDayEnglishName): void {
-                $query->whereIn('name', $linkedSpecialDayName)
-                    ->orWhereIn('eng_name', $linkedSpecialDayEnglishName);
-            })
-            ->where(function ($query) use ($target): void {
-                $query->whereDate('date', $target->toDateString())
-                    ->orWhereDate('s_date', $target->toDateString())
-                    ->orWhere(function ($annualDate) use ($target): void {
-                        $annualDate->whereMonth('date', $target->month)
-                            ->whereDay('date', $target->day);
-                    });
-            })
+            ->whereColumn("{$specialDaysTable}.id", "{$mediaTable}.special_day");
+
+        if ($hasStatus) {
+            $query->where('status', 1);
+        } elseif ($hasImageStatus) {
+            $query->where('img_status', 1);
+        }
+
+        $query->where(function ($dateQuery) use ($target, $hasAlternateDate): void {
+            $dateQuery->whereDate('date', $target->toDateString())
+                ->orWhere(function ($annualDate) use ($target): void {
+                    $annualDate->whereMonth('date', $target->month)
+                        ->whereDay('date', $target->day);
+                });
+
+            if ($hasAlternateDate) {
+                $dateQuery->orWhereDate('s_date', $target->toDateString());
+            }
+        });
+
+        return $query
             ->orderByRaw('CASE WHEN sequence > 0 THEN sequence ELSE 999999 END')
             ->orderByDesc('date')
             ->orderByDesc('id')
@@ -2221,10 +2231,10 @@ Route::prefix('v1')->group(function () {
             ->where('type', $downloadHistoryType)
             ->count();
 
-        $limitExhausted = ($dailyLimit > 0 && $downloadsToday >= $dailyLimit);
+        $limitExhausted = ! $isFreePlan && $dailyLimit > 0 && $downloadsToday >= $dailyLimit;
         $actualDesignPrice = (float) ($design->price ?? 0);
-        $isPaidDesign = ! $isVideo && $actualDesignPrice > 0;
-        $requiresWalletForDesign = $isFreePlan && $isPaidDesign;
+        $isPaidItem = $actualDesignPrice > 0;
+        $requiresWalletForPaidItem = $isFreePlan && $isPaidItem;
         $designPrice = $actualDesignPrice > 0 ? $actualDesignPrice : 5.00;
         $walletColumn = Schema::hasColumn('users', 'balance')
             ? 'balance'
@@ -2233,31 +2243,18 @@ Route::prefix('v1')->group(function () {
             ? 0.00
             : (float) DB::table('users')->where('id', $user->id)->value($walletColumn);
 
-        if ($isFreePlan && ! $isVideo && ! $isPaidDesign && $limitExhausted) {
-            return response()->json([
-                'status' => 'limit_reached',
-                'limit_exhausted' => true,
-                'message' => 'Your daily free-design limit has been reached.',
-                'daily_limit' => $dailyLimit,
-                'downloads_today' => $downloadsToday,
-                'wallet_balance' => $userBalance,
-                'can_use_wallet' => false,
-                'wallet_status' => false,
-            ], 200);
-        }
+        $walletChargeRequired = $limitExhausted || $requiresWalletForPaidItem;
 
-        $walletChargeRequired = $limitExhausted || $requiresWalletForDesign;
-
-        // Ask for wallet payment when the quota is used or a Free-plan user opens a paid design.
+        // Free-plan users can download free items without a quota; priced items require wallet payment.
         if ($walletChargeRequired && ! $useWallet) {
             return response()->json([
                 'status' => 'limit_reached',
                 'limit_exhausted' => $limitExhausted,
-                'wallet_required' => $requiresWalletForDesign,
-                'message' => $requiresWalletForDesign
-                    ? 'This paid design requires payment from your wallet.'
+                'wallet_required' => $requiresWalletForPaidItem,
+                'message' => $requiresWalletForPaidItem
+                    ? 'This paid item requires payment from your wallet.'
                     : 'Daily download limit reached. Do you want to download using wallet balance?',
-                'daily_limit' => $dailyLimit,
+                'daily_limit' => $isFreePlan ? null : $dailyLimit,
                 'downloads_today' => $downloadsToday,
                 'design_price' => $designPrice,
                 'wallet_balance' => $userBalance,
@@ -2268,7 +2265,7 @@ Route::prefix('v1')->group(function () {
 
         $walletDeducted = false;
 
-        // Charge the wallet for paid designs on Free plans or when a plan quota is exhausted.
+        // Charge the wallet for paid items on Free plans or when a paid-plan quota is exhausted.
         if ($walletChargeRequired && $useWallet) {
             if ($userBalance < $designPrice) {
                 return response()->json([
@@ -2326,7 +2323,7 @@ Route::prefix('v1')->group(function () {
             $design->increment('downloads');
         }
 
-        $remainingLimit = max(0, $dailyLimit - ($downloadsToday + 1));
+        $remainingLimit = $isFreePlan ? null : max(0, $dailyLimit - ($downloadsToday + 1));
 
         return response()->json([
             'status' => 'success',
@@ -2342,7 +2339,7 @@ Route::prefix('v1')->group(function () {
             'wallet_status' => true,
             'amount_deducted' => $walletDeducted ? $designPrice : 0.00,
             'balance' => $userBalance,
-            'daily_limit' => $dailyLimit,
+            'daily_limit' => $isFreePlan ? null : $dailyLimit,
             'downloads_today' => $downloadsToday + 1,
             'remaining_downloads' => $remainingLimit,
             'design' => [
