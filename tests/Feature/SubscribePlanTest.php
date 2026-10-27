@@ -168,6 +168,10 @@ class SubscribePlanTest extends TestCase
         $this->createDownloadTables();
 
         $user = User::factory()->create();
+        DB::table('users')->where('id', $user->id)->update([
+            'design_daily_download_limit' => 1,
+            'video_daily_download_limit' => 1,
+        ]);
         DB::table('user_plan_histories')->insert([
             'user_id' => $user->id,
             'plan_id' => 1,
@@ -254,6 +258,47 @@ class SubscribePlanTest extends TestCase
         ]);
     }
 
+    public function test_updated_user_download_limit_overrides_plan_snapshot_on_next_request(): void
+    {
+        $this->createDownloadTables();
+        $user = User::factory()->create();
+        $this->createActiveQuotaHistory($user);
+        DB::table('users')->where('id', $user->id)->update([
+            'design_daily_download_limit' => 20,
+        ]);
+        DB::table('user_plan_histories')->where('user_id', $user->id)->update([
+            'daily_limit_design' => 10,
+        ]);
+        DB::table('designs')->insert([
+            'id' => 1,
+            'design' => 'design.jpg',
+            'price' => 0,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        foreach (range(1, 10) as $downloadNumber) {
+            DB::table('photo_history')->insert([
+                'user_id' => $user->id,
+                'photo_id' => $downloadNumber + 1,
+                'app_key' => '1',
+                'photo_price' => 0,
+                'type' => 'design',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
+
+        $this->actingAs($user, 'sanctum')->postJson('/api/v1/designs/1/download')
+            ->assertOk()
+            ->assertJsonPath('status', 'success')
+            ->assertJsonPath('daily_limit', 20)
+            ->assertJsonPath('downloads_today', 11)
+            ->assertJsonPath('remaining_downloads', 9);
+
+        $this->assertDatabaseCount('photo_history', 11);
+    }
+
     public function test_insufficient_wallet_balance_returns_402_without_charging_or_recording_download(): void
     {
         $this->createDownloadTables();
@@ -329,6 +374,11 @@ class SubscribePlanTest extends TestCase
 
     private function createActiveQuotaHistory(User $user): void
     {
+        DB::table('users')->where('id', $user->id)->update([
+            'design_daily_download_limit' => 1,
+            'video_daily_download_limit' => 1,
+        ]);
+
         DB::table('user_plan_histories')->insert([
             'user_id' => $user->id,
             'plan_id' => 1,
