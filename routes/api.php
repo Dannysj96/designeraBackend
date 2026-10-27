@@ -2219,10 +2219,10 @@ Route::prefix('v1')->group(function () {
         $userLimit = $downloadHistoryType === 'video'
             ? ($user->daily_download_limit_video ?? 0)
             : ($user->daily_download_limit_design ?? 0);
-        if ((int) $planLimit > 0) {
-            $dailyLimit = (int) $planLimit;
-        } elseif ((int) $userLimit > 0) {
+        if ((int) $userLimit > 0) {
             $dailyLimit = (int) $userLimit;
+        } elseif ((int) $planLimit > 0) {
+            $dailyLimit = (int) $planLimit;
         }
 
         $actualDesignPrice = (float) ($design->price ?? 0);
@@ -2383,7 +2383,7 @@ Route::prefix('v1')->group(function () {
             'amount_deducted' => $walletDeducted ? $designPrice : 0.00,
             'balance' => $userBalance,
             'daily_limit' => $isFreePlan ? null : $dailyLimit,
-            'downloads_today' => $downloadsToday + 1,
+            'downloads_today' => $downloadsToday,
             'remaining_downloads' => $remainingLimit,
             'design' => [
                 'id' => $design->id,
