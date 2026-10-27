@@ -165,26 +165,7 @@ class SubscribePlanTest extends TestCase
 
     public function test_design_and_video_downloads_use_separate_active_plan_quotas(): void
     {
-        Schema::create('designs', function (Blueprint $table): void {
-            $table->id();
-            $table->string('design')->nullable();
-            $table->decimal('price', 10, 2)->default(0);
-            $table->integer('views')->default(0);
-            $table->integer('downloads')->default(0);
-            $table->timestamps();
-        });
-        Schema::create('photo_history', function (Blueprint $table): void {
-            $table->id();
-            $table->integer('user_id');
-            $table->integer('photo_id');
-            $table->string('app_key')->nullable();
-            $table->decimal('photo_price', 10, 2)->default(0);
-            $table->string('type');
-            $table->string('latitude')->nullable();
-            $table->string('longitude')->nullable();
-            $table->string('pincode')->nullable();
-            $table->timestamps();
-        });
+        $this->createDownloadTables();
 
         $user = User::factory()->create();
         DB::table('user_plan_histories')->insert([
@@ -204,7 +185,13 @@ class SubscribePlanTest extends TestCase
         ]);
         DB::table('designs')->insert([
             ['id' => 1, 'design' => 'design.jpg', 'price' => 0, 'created_at' => now(), 'updated_at' => now()],
-            ['id' => 2, 'design' => 'video.mp4', 'price' => 0, 'created_at' => now(), 'updated_at' => now()],
+        ]);
+        DB::table('videos')->insert([
+            'id' => 2,
+            'video' => 'video.mp4',
+            'price' => 0,
+            'created_at' => now(),
+            'updated_at' => now(),
         ]);
 
         $this->actingAs($user, 'sanctum')->postJson('/api/v1/designs/1/download', [
@@ -222,6 +209,141 @@ class SubscribePlanTest extends TestCase
         $this->assertDatabaseCount('photo_history', 2);
         $this->assertDatabaseHas('photo_history', ['photo_id' => 1, 'type' => 'design']);
         $this->assertDatabaseHas('photo_history', ['photo_id' => 2, 'type' => 'video']);
+    }
+
+    public function test_limit_prompt_then_wallet_payment_deducts_and_records_download(): void
+    {
+        $this->createDownloadTables();
+        $user = User::factory()->create();
+        DB::table('users')->where('id', $user->id)->update(['wallet_balance' => 100]);
+        $this->createActiveQuotaHistory($user);
+        DB::table('designs')->insert([
+            'id' => 1,
+            'design' => 'design.jpg',
+            'price' => 15,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($user, 'sanctum')->postJson('/api/v1/designs/1/download')
+            ->assertOk()
+            ->assertJsonPath('status', 'success');
+        $this->postJson('/api/v1/designs/1/download')
+            ->assertOk()
+            ->assertJsonPath('status', 'limit_reached')
+            ->assertJsonPath('downloads_today', 1);
+        $this->postJson('/api/v1/designs/1/download', ['use_wallet' => 1])
+            ->assertOk()
+            ->assertJsonPath('status', 'success')
+            ->assertJsonPath('wallet_deducted', true)
+            ->assertJsonPath('amount_deducted', 15)
+            ->assertJsonPath('balance', 85);
+
+        $this->assertDatabaseHas('users', ['id' => $user->id, 'wallet_balance' => 85]);
+        $this->assertDatabaseCount('photo_history', 2);
+        $this->assertDatabaseHas('photo_history', [
+            'user_id' => $user->id,
+            'photo_id' => 1,
+            'photo_price' => 15,
+            'type' => 'design',
+        ]);
+        $this->assertDatabaseHas('transactions', [
+            'user_id' => $user->id,
+            'amount' => -15,
+            'type' => 'debit',
+        ]);
+    }
+
+    public function test_insufficient_wallet_balance_returns_402_without_charging_or_recording_download(): void
+    {
+        $this->createDownloadTables();
+        $user = User::factory()->create();
+        DB::table('users')->where('id', $user->id)->update(['wallet_balance' => 10]);
+        $this->createActiveQuotaHistory($user);
+        DB::table('designs')->insert([
+            ['id' => 1, 'design' => 'first.jpg', 'price' => 0, 'created_at' => now(), 'updated_at' => now()],
+            ['id' => 2, 'design' => 'second.jpg', 'price' => 25, 'created_at' => now(), 'updated_at' => now()],
+        ]);
+
+        $this->actingAs($user, 'sanctum')->postJson('/api/v1/designs/1/download')
+            ->assertOk()
+            ->assertJsonPath('status', 'success');
+        $this->postJson('/api/v1/designs/2/download', ['use_wallet' => 1])
+            ->assertPaymentRequired()
+            ->assertJsonPath('status', 'insufficient_balance')
+            ->assertJsonPath('wallet_balance', 10)
+            ->assertJsonPath('required_amount', 25);
+
+        $this->assertDatabaseHas('users', ['id' => $user->id, 'wallet_balance' => 10]);
+        $this->assertDatabaseCount('photo_history', 1);
+        $this->assertDatabaseMissing('photo_history', ['photo_id' => 2]);
+        $this->assertDatabaseCount('transactions', 0);
+    }
+
+    private function createDownloadTables(): void
+    {
+        Schema::dropIfExists('transactions');
+        Schema::dropIfExists('photo_history');
+        Schema::dropIfExists('videos');
+        Schema::dropIfExists('designs');
+
+        Schema::create('designs', function (Blueprint $table): void {
+            $table->id();
+            $table->string('design')->nullable();
+            $table->decimal('price', 10, 2)->default(0);
+            $table->integer('views')->default(0);
+            $table->integer('downloads')->default(0);
+            $table->timestamps();
+        });
+        Schema::create('videos', function (Blueprint $table): void {
+            $table->id();
+            $table->string('video')->nullable();
+            $table->decimal('price', 10, 2)->default(0);
+            $table->integer('views')->default(0);
+            $table->integer('downloads')->default(0);
+            $table->timestamps();
+        });
+        Schema::create('photo_history', function (Blueprint $table): void {
+            $table->id();
+            $table->integer('user_id');
+            $table->integer('photo_id');
+            $table->string('app_key')->nullable();
+            $table->decimal('photo_price', 10, 2)->default(0);
+            $table->string('type');
+            $table->string('latitude')->nullable();
+            $table->string('longitude')->nullable();
+            $table->string('pincode')->nullable();
+            $table->timestamps();
+        });
+        Schema::create('transactions', function (Blueprint $table): void {
+            $table->id();
+            $table->integer('user_id');
+            $table->decimal('amount', 10, 2);
+            $table->string('currency');
+            $table->string('type');
+            $table->string('payment_method');
+            $table->string('description');
+            $table->timestamps();
+        });
+    }
+
+    private function createActiveQuotaHistory(User $user): void
+    {
+        DB::table('user_plan_histories')->insert([
+            'user_id' => $user->id,
+            'plan_id' => 1,
+            'plan_name' => 'Quota Plan',
+            'price' => 0,
+            'duration_days' => 30,
+            'start_date' => now(),
+            'end_date' => now()->addDays(30),
+            'status' => 'active',
+            'daily_limit_design' => 1,
+            'daily_limit_video' => 1,
+            'payment_method' => 'wallet',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
     }
 
     private function createPlan(float $price, int $designLimit, int $videoLimit): int

@@ -2225,13 +2225,6 @@ Route::prefix('v1')->group(function () {
             $dailyLimit = (int) $userLimit;
         }
 
-        // 2. Check today's download count from photo_history
-        $downloadsToday = PhotoHistory::where('user_id', $user->id)
-            ->whereDate('created_at', $today)
-            ->where('type', $downloadHistoryType)
-            ->count();
-
-        $limitExhausted = ! $isFreePlan && $dailyLimit > 0 && $downloadsToday >= $dailyLimit;
         $actualDesignPrice = (float) ($design->price ?? 0);
         $isPaidItem = $actualDesignPrice > 0;
         $requiresWalletForPaidItem = $isFreePlan && $isPaidItem;
@@ -2239,91 +2232,141 @@ Route::prefix('v1')->group(function () {
         $walletColumn = Schema::hasColumn('users', 'balance')
             ? 'balance'
             : (Schema::hasColumn('users', 'wallet_balance') ? 'wallet_balance' : null);
-        $userBalance = $walletColumn === null
-            ? 0.00
-            : (float) DB::table('users')->where('id', $user->id)->value($walletColumn);
+        $appKey = $request->input('app_key', '1');
+        $latitude = $request->input('latitude');
+        $longitude = $request->input('longitude');
+        $pincode = $request->input('pincode');
+        $downloadResult = DB::transaction(function () use (
+            $appKey,
+            $dailyLimit,
+            $design,
+            $designPrice,
+            $downloadHistoryType,
+            $isFreePlan,
+            $isVideo,
+            $latitude,
+            $longitude,
+            $pincode,
+            $requiresWalletForPaidItem,
+            $today,
+            $useWallet,
+            $user,
+            $walletColumn,
+        ): array {
+            $lockedUser = User::query()->whereKey($user->id)->lockForUpdate()->firstOrFail();
+            $downloadsToday = PhotoHistory::query()
+                ->where('user_id', $lockedUser->id)
+                ->whereDate('created_at', $today)
+                ->where('type', $downloadHistoryType)
+                ->count();
+            $limitExhausted = ! $isFreePlan && $dailyLimit > 0 && $downloadsToday >= $dailyLimit;
+            $walletChargeRequired = $limitExhausted || $requiresWalletForPaidItem;
+            $userBalance = $walletColumn === null
+                ? 0.00
+                : (float) DB::table('users')->where('id', $lockedUser->id)->value($walletColumn);
 
-        $walletChargeRequired = $limitExhausted || $requiresWalletForPaidItem;
-
-        // Free-plan users can download free items without a quota; priced items require wallet payment.
-        if ($walletChargeRequired && ! $useWallet) {
-            return response()->json([
-                'status' => 'limit_reached',
-                'limit_exhausted' => $limitExhausted,
-                'wallet_required' => $requiresWalletForPaidItem,
-                'message' => $requiresWalletForPaidItem
-                    ? 'This paid item requires payment from your wallet.'
-                    : 'Daily download limit reached. Do you want to download using wallet balance?',
-                'daily_limit' => $isFreePlan ? null : $dailyLimit,
-                'downloads_today' => $downloadsToday,
-                'design_price' => $designPrice,
-                'wallet_balance' => $userBalance,
-                'can_use_wallet' => ($userBalance >= $designPrice),
-                'wallet_status' => false,
-            ], 200);
-        }
-
-        $walletDeducted = false;
-
-        // Charge the wallet for paid items on Free plans or when a paid-plan quota is exhausted.
-        if ($walletChargeRequired && $useWallet) {
-            if ($userBalance < $designPrice) {
-                return response()->json([
-                    'status' => 'insufficient_balance',
+            // Free-plan users can download free items without a quota; priced items require wallet payment.
+            if ($walletChargeRequired && ! $useWallet) {
+                return [
+                    'status' => 'limit_reached',
                     'limit_exhausted' => $limitExhausted,
-                    'message' => "Insufficient wallet balance (₹{$userBalance}). Required amount: ₹{$designPrice}. Please recharge.",
+                    'wallet_required' => $requiresWalletForPaidItem,
+                    'message' => $requiresWalletForPaidItem
+                        ? 'This paid item requires payment from your wallet.'
+                        : 'Daily download limit reached. Do you want to download using wallet balance?',
+                    'daily_limit' => $isFreePlan ? null : $dailyLimit,
+                    'downloads_today' => $downloadsToday,
+                    'design_price' => $designPrice,
                     'wallet_balance' => $userBalance,
-                    'required_amount' => $designPrice,
+                    'can_use_wallet' => $userBalance >= $designPrice,
                     'wallet_status' => false,
-                ], 402);
+                ];
             }
 
-            if ($walletColumn === null) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Wallet balance is unavailable for this account.',
-                ], 500);
+            $walletDeducted = false;
+
+            // Charge the wallet for paid items on Free plans or when a paid-plan quota is exhausted.
+            if ($walletChargeRequired && $useWallet) {
+                if ($userBalance < $designPrice) {
+                    return [
+                        'status' => 'insufficient_balance',
+                        'limit_exhausted' => $limitExhausted,
+                        'message' => "Insufficient wallet balance (₹{$userBalance}). Required amount: ₹{$designPrice}. Please recharge.",
+                        'wallet_balance' => $userBalance,
+                        'required_amount' => $designPrice,
+                        'wallet_status' => false,
+                    ];
+                }
+
+                if ($walletColumn === null) {
+                    return [
+                        'status' => 'error',
+                        'message' => 'Wallet balance is unavailable for this account.',
+                    ];
+                }
+
+                DB::table('users')->where('id', $lockedUser->id)->decrement($walletColumn, $designPrice);
+                $userBalance = (float) DB::table('users')->where('id', $lockedUser->id)->value($walletColumn);
+                $walletDeducted = true;
+
+                // Log wallet transaction
+                try {
+                    DB::table('transactions')->insert([
+                        'user_id' => $lockedUser->id,
+                        'amount' => -$designPrice,
+                        'currency' => 'INR',
+                        'type' => 'debit',
+                        'payment_method' => 'wallet',
+                        'description' => $isVideo
+                            ? "Downloaded video #{$design->id}"
+                            : "Downloaded design #{$design->id}",
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+                } catch (Throwable $e) {
+                }
             }
 
-            $user->decrement($walletColumn, $designPrice);
-            $userBalance = (float) DB::table('users')->where('id', $user->id)->value($walletColumn);
-            $walletDeducted = true;
+            PhotoHistory::create([
+                'user_id' => $lockedUser->id,
+                'photo_id' => $design->id,
+                'app_key' => $appKey,
+                'photo_price' => $walletDeducted ? $designPrice : 0.00,
+                'type' => $downloadHistoryType,
+                'latitude' => $latitude,
+                'longitude' => $longitude,
+                'pincode' => $pincode,
+            ]);
 
-            // Log wallet transaction
-            try {
-                DB::table('transactions')->insert([
-                    'user_id' => $user->id,
-                    'amount' => -$designPrice,
-                    'currency' => 'INR',
-                    'type' => 'debit',
-                    'payment_method' => 'wallet',
-                    'description' => $isVideo
-                        ? "Downloaded video #{$design->id}"
-                        : "Downloaded design #{$design->id}",
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ]);
-            } catch (Throwable $e) {
+            if (Schema::hasColumn($design->getTable(), 'downloads')) {
+                $design->increment('downloads');
             }
+
+            return [
+                'status' => 'success',
+                'downloads_today' => $downloadsToday + 1,
+                'wallet_deducted' => $walletDeducted,
+                'balance' => $userBalance,
+                'remaining_downloads' => $isFreePlan ? null : max(0, $dailyLimit - ($downloadsToday + 1)),
+            ];
+        });
+
+        if ($downloadResult['status'] === 'limit_reached') {
+            return response()->json($downloadResult);
         }
 
-        // Record in photo_history
-        $history = PhotoHistory::create([
-            'user_id' => $user->id,
-            'photo_id' => $design->id,
-            'app_key' => $request->input('app_key', '1'),
-            'photo_price' => $walletDeducted ? $designPrice : 0.00,
-            'type' => $downloadHistoryType,
-            'latitude' => $request->input('latitude'),
-            'longitude' => $request->input('longitude'),
-            'pincode' => $request->input('pincode'),
-        ]);
-
-        if (Schema::hasColumn($design->getTable(), 'downloads')) {
-            $design->increment('downloads');
+        if ($downloadResult['status'] === 'insufficient_balance') {
+            return response()->json($downloadResult, 402);
         }
 
-        $remainingLimit = $isFreePlan ? null : max(0, $dailyLimit - ($downloadsToday + 1));
+        if ($downloadResult['status'] === 'error') {
+            return response()->json($downloadResult, 500);
+        }
+
+        $walletDeducted = $downloadResult['wallet_deducted'];
+        $userBalance = $downloadResult['balance'];
+        $downloadsToday = $downloadResult['downloads_today'];
+        $remainingLimit = $downloadResult['remaining_downloads'];
 
         return response()->json([
             'status' => 'success',
